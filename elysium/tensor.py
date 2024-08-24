@@ -119,6 +119,8 @@ class Tensor:
             
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
     def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
+    def view(self,shape):return View.apply(self,shape)
+    def squeeze(self,dim:Union[Tuple[int,...],None]=None):return Squeeze.apply(self,dim=dim)
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
     def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)

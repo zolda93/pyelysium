@@ -144,6 +144,32 @@ class Sum(Function):
         for i in axis:strides[i] = 0
         return (e.Tensor(xp.lib.stride_tricks.as_strided(grad,shape=a.shape,strides=strides),device=a.device,dtype=a.dtype),) if a.requires_grad else None
 
+class View(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',shape)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.shape = shape
+        return e.Tensor(a.data.reshape(shape),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Union['Tensor',None]:
+        a = ctx.get_saved_tensors()[0]
+        shape = ctx.shape
+        return (e.Tensor(grad.data.reshape(shape),device=a.device,dtype=a.dtype),) if a.requires_grad else None
+
+class Squeeze(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',dim:Union[Tuple[int,...],None]=None)->'Tensor':
+        ctx.save_for_backward(a)
+        if dim is None:dim = tuple(range(a.ndim))
+        dim = (dim,) if isinstance(dim,int) else dim
+        squeeze_dims = tuple(i for i in dim if a.shape[i] == 1)
+        ctx.dim = squeeze_dims
+        return e.Tensor(a.data.squeeze(axis=squeeze_dims),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Union['Tensor',None]:
+        a = ctx.get_saved_tensors()[0]
+        dim = ctx.dim
+        return (e.Tensor(grad.data.expand_dims(axis=dim),device=a.device,dtype=a.dtype),) if a.requires_grad else None
 
 
 
