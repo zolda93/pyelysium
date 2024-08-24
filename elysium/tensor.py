@@ -22,22 +22,23 @@ class Tensor:
             self.data = self._initialize_data(data,np,dtype)
         else:
             raise TypeError(f"Unsupported device type: {device}")
+
     def _initialize_data(self,data:Optional[TensorType],lib,dtype:Dtype):
         if data is None:
             return lib.array([],dtype=dtype)
-        elif isinstance(data,(float,int,bool,list)):
+        elif isinstance(data,(float,int,bool,list,np.float16,np.float32,np.float64)):
             return lib.array(data,dtype=dtype)
         elif isinstance(data,(np.ndarray,cp.ndarray)):
             return data.astype(dtype)
         else:
             raise TypeError(f"Unsupported data type for Tensor initialization: {type(data)}")
 
-    def __del__(self):
-        try:
-            if self._ctx is not None:
-                self._ctx = None
-        except Exception as e:
-            print(f"Exception in __del__ of Tensor: {e}")
+    #def __del__(self):
+        #try:
+           # if self._ctx is not None:
+         #       self._ctx = None
+        #except Exception as e:
+            #print(f"Exception in __del__ of Tensor: {e}")
 
     @property
     def requires_grad(self)->bool:return self._requires_grad
@@ -89,11 +90,62 @@ class Tensor:
         if self.device == 'gpu':
             return self.data.get()
         return self.data
+    def backward(self,grad:Optional['Tensor']=None)->None:
+        topo_order,visited = [],set()
+        def build_topo(t:'Tensor'):
+            if t not in visited:
+                visited.add(t)
+                if t._ctx is not None:
+                    for inp in t._ctx.get_saved_tensors():
+                        build_topo(inp)
+                topo_order.append(t)
+        build_topo(self)
+        if grad is None:
+            assert self.shape == (),f'when no gradient is provided ,backward must be called on a scalar tensor'
+            grad = Tensor(1.0,requires_grad=False,device=self.device,dtype=self.dtype)
+        assert self.shape == grad.shape, f"grad shape must match tensor shape, {grad.shape!r} != {self.shape!r}"
+        self.grad = grad
+        for t in reversed(topo_order):
+            if t._ctx is not None:
+                gradient = [t.grad]
+                grad_inputs = t._ctx.func.backward(t._ctx,*gradient)
+                for i,grad in enumerate(grad_inputs):
+                    if grad is not None:
+                        if t._ctx.saved_tensors[i].grad is None:
+                            t._ctx.saved_tensors[i].grad = grad
+                        else:
+                            t._ctx.saved_tensors[i].grad +=grad
+                del t._ctx
+            
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
+    def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
-    def __sub__(self,other:'Tensor')->'Tensor':return Add.apply(self,(-other))
+    def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
+    __radd__ = __add__
+    add = __add__
+    add_ = __iadd__
+    def __sub__(self,other:'Tensor')->'Tensor':return Sub.apply(self,other)
+    def __isub__(self,other:'Tensor')->'Tensor':return Sub.apply(self,other,inplace=True)
+    def __rsub__(self,other:'Tensor')->'Tensor':return sub(other,self)
+    sub = __sub__
+    sub_ = __isub__
     def __mul__(self,other:'Tensor')->'Tensor':return Mul.apply(self,other)
+    def __imul__(self,other:'Tensor')->'Tensor':return Mul.apply(self,other,inplace=True)
+    mul_ = __imul__
+    mul = __mul__
+    def __truediv__(self,other)->'Tensor':
+        if not isinstance(other,Tensor):
+            other = Tensor(other,device=self.device)
+        return Div.apply(self,other)
+    def __idiv__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):
+            other = Tensor(other,device=self.device)
+        return Div.apply(self,other,inplace=True)
+    div = __truediv__
+    div_ = __idiv__
+
+
 
 
     

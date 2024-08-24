@@ -13,7 +13,7 @@ class Function:
     def forward(ctx:Context,*args:'Tensor',**kwargs)->'Tensor':
         raise NotImplementedError
     @staticmethod
-    def backward(ctx:Context,grad:'Tensor')->Tuple[Union[None,float,'Tensor'],...]:
+    def backward(ctx:Context,*grad:'Tensor')->Tuple[Union[None,float,'Tensor'],...]:
         raise NotImplementedError
     @classmethod
     def apply(cls,*args:'Tensor',**kwargs)->'Tensor':
