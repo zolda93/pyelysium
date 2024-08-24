@@ -5,6 +5,7 @@ import elysium as e
 
 
 def sum_to_shape(x,shape:Tuple[int,...])->'Tensor':
+    device = 'gpu' if x.__class__ is cp.ndarray else 'cpu'
     dims_to_sum = tuple(i for i,(s1,s2) in enumerate(zip(x.shape,shape)) if s1!=s2)
     return e.Tensor(x.sum(axis=dims_to_sum,keepdims=(len(dims_to_sum)>0)),dtype=x.dtype)
 class Neg(Function):
@@ -119,8 +120,8 @@ class Bmm(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a,b = ctx.get_saved_tensors()
         xp = cp if a.device == 'gpu' else np
-        grad_a = e.Tensor(grad.data@xp.swapaxes(b.data,-1,-2),device=a.device,dtype=a.dtype) if a.requires_grad else None
-        grad_b = e.Tensor(xp.swapaxes(a.data,-1,-2)@grad.data,device=b.device,dtype=b.dtype) if b.requires_grad else None
+        grad_a = sum_to_shape(grad.data@xp.swapaxes(b.data,-1,-2),a.shape) if a.requires_grad else None
+        grad_b = sum_to_shape(xp.swapaxes(a.data,-1,-2)@grad.data,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
 
 class Sum(Function):
@@ -169,7 +170,22 @@ class Squeeze(Function):
     def backward(ctx:Context,grad:'Tensor')->Union['Tensor',None]:
         a = ctx.get_saved_tensors()[0]
         dim = ctx.dim
-        return (e.Tensor(grad.data.expand_dims(axis=dim),device=a.device,dtype=a.dtype),) if a.requires_grad else None
+        xp = cp if a.device=='gpu' else np
+        return (e.Tensor(xp.expand_dims(grad.data,axis=dim),device=a.device,dtype=a.dtype),) if a.requires_grad else None
+
+class Unsqueeze(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',dim:Tuple[int,...])->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.dim = dim
+        xp = cp if a.device=='gpu' else np
+        return e.Tensor(xp.expand_dims(a.data,dim),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Union['Tensor',None]:
+        a = ctx.get_saved_tensors()[0]
+        dim = ctx.dim
+        return (e.Tensor(grad.data.squeeze(axis=dim),device=a.device,dtype=a.dtype),) if a.requires_grad else None
+
 
 
 

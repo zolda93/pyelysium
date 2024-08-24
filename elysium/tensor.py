@@ -26,9 +26,13 @@ class Tensor:
     def _initialize_data(self,data:Optional[TensorType],lib,dtype:Dtype):
         if data is None:
             return lib.array([],dtype=dtype)
-        elif isinstance(data,(float,int,bool,list,np.float16,np.float32,np.float64)):
+        elif isinstance(data,(float,int,bool,list,lib.float16,lib.float32,lib.float64)):
             return lib.array(data,dtype=dtype)
-        elif isinstance(data,(np.ndarray,cp.ndarray)):
+        elif lib is cp:
+            if isinstance(data,np.ndarray):return lib.array(data,dtype=dtype)
+            return data.astype(dtype)            
+        elif lib is np:
+            if cp is not None and isinstance(data,cp.ndarray):return data.get()
             return data.astype(dtype)
         else:
             raise TypeError(f"Unsupported data type for Tensor initialization: {type(data)}")
@@ -120,7 +124,8 @@ class Tensor:
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
     def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
     def view(self,shape):return View.apply(self,shape)
-    def squeeze(self,dim:Union[Tuple[int,...],None]=None):return Squeeze.apply(self,dim=dim)
+    def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
+    def unsqueeze(self,dim:Tuple[int,...])->'Tensor':return Unsqueeze.apply(self,dim)
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
     def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
@@ -146,6 +151,22 @@ class Tensor:
         return Div.apply(self,other,inplace=True)
     div = __truediv__
     div_ = __idiv__
+    def __matmul__(self,other:'Tensor')->'Tensor':
+        if self.ndim == 0 or other.ndim==0:raise RuntimeError
+        if self.ndim==2 and other.ndim==2:
+            return Mm.apply(self,other)
+        elif self.ndim == 2 and other.ndim == 1:
+            return Mv.apply(self,other)
+        elif self.ndim == 1 and other.ndim == 2:
+            return Squeeze.apply(Mm.apply(Unsqueeze.apply(self,0),other),0)
+        elif self.ndim > 2 and other.ndim == 1:
+            return Squeeze.apply(Bmm.apply(self,Unsqueeze.apply(other,-1)),-1)
+        elif self.ndim == 1 and other.ndim > 2:
+            print(self.shape)
+            print((-1,*self.shape))
+            return Squeeze.apply(Bmm.apply(View.apply(self,(-1,*self.shape)),other),-2)
+        else:
+            return Bmm.apply(self,other)
 
 
 
