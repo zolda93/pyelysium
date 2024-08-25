@@ -1,6 +1,6 @@
 from typing import Tuple,List,Union,Optional,TypeVar
 from elysium import np,cp,ConstType,Dtype,TensorType
-from .autograd.function import *
+from .autograd.grad_fcn import *
 T = TypeVar('T',bound='Tensor')
 
 class Tensor:
@@ -110,7 +110,7 @@ class Tensor:
         assert self.shape == grad.shape, f"grad shape must match tensor shape, {grad.shape!r} != {self.shape!r}"
         self.grad = grad
         for t in reversed(topo_order):
-            if t._ctx is not None:
+            if t._ctx is not None and t.requires_grad:
                 gradient = [t.grad]
                 grad_inputs = t._ctx.func.backward(t._ctx,*gradient)
                 for i,grad in enumerate(grad_inputs):
@@ -122,6 +122,8 @@ class Tensor:
                 del t._ctx
             
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
+    def sqrt(self)->'Tensor':return Sqrt.apply(self)
+    def exp(self)->'Tensor':return Exp.apply(self)
     def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
     def view(self,shape):return View.apply(self,shape)
     def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
@@ -147,6 +149,9 @@ class Tensor:
     def __idiv__(self,other:'Tensor')->'Tensor':
         if not isinstance(other,Tensor):other = Tensor(other,device=self.device)
         return Div.apply(self,other,inplace=True)
+    def _rtruediv__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other)
+        return dive(other,self)
     div = __truediv__
     div_ = __idiv__
     def __pow__(self,other:'Tensor')->'Tensor':
