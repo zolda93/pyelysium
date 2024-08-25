@@ -6,8 +6,8 @@ import elysium as e
 
 def sum_to_shape(x,shape:Tuple[int,...])->'Tensor':
     device = 'gpu' if x.__class__ is cp.ndarray else 'cpu'
-    dims_to_sum = tuple(i for i,(s1,s2) in enumerate(zip(x.shape,shape)) if s1!=s2)
-    return e.Tensor(x.sum(axis=dims_to_sum,keepdims=(len(dims_to_sum)>0)),dtype=x.dtype)
+    dims_to_sum = tuple(i for i, (s1, s2) in enumerate(zip(x.shape, shape)) if s1 != s2)
+    return e.Tensor(x.sum(axis=tuple(range(x.ndim - len(shape))),keepdims=(len(dims_to_sum)>0)),device=device,dtype=x.dtype)
 class Neg(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -83,6 +83,23 @@ class Div(Function):
         grad_b = sum_to_shape(-(grad.data * a.data) / (b.data + 1e-8)**2,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
 
+
+class Pow(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
+        ctx.save_for_backward(a,b)
+        if inplace:
+            a.data**=b.data
+            return Tensor(a.data,requires_grad=a.requires_grad|b.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(a.data**b.data,requires_grad=a.requires_grad|b.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None]]:
+        a,b= ctx.get_saved_tensors()
+        xp = cp if a.device == 'gpu' else np
+        grad_a = sum_to_shape(grad.data * b.data * (a.data ** (b.data - 1)),a.shape) if a.requires_grad else None
+        grad_b = sum_to_shape(grad.data * (a.data ** b.data) * xp.log(a.data),b.shape) if b.requires_grad else None
+        return (grad_a, grad_b)
+
 class Mv(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor')->'Tensor':
@@ -94,7 +111,7 @@ class Mv(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a,b = ctx.get_saved_tensors()
         grad_a = e.Tensor(grad.data[:,None]@b.data[None],device=a.device,dtype=a.dtype) if a.requires_grad else None
-        grad_b = e.Tensor(a.data.T@grad.data,device=b.device,dtype=b.dtype) if b.requires_grad else None
+        grad_b = sum_to_shape(a.data.T@grad.data,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
 
 class Mm(Function):
@@ -185,8 +202,4 @@ class Unsqueeze(Function):
         a = ctx.get_saved_tensors()[0]
         dim = ctx.dim
         return (e.Tensor(grad.data.squeeze(axis=dim),device=a.device,dtype=a.dtype),) if a.requires_grad else None
-
-
-
-
 

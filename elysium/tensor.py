@@ -142,15 +142,24 @@ class Tensor:
     mul_ = __imul__
     mul = __mul__
     def __truediv__(self,other)->'Tensor':
-        if not isinstance(other,Tensor):
-            other = Tensor(other,device=self.device)
+        if not isinstance(other,Tensor):other = Tensor(other,device=self.device)
         return Div.apply(self,other)
     def __idiv__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):
-            other = Tensor(other,device=self.device)
+        if not isinstance(other,Tensor):other = Tensor(other,device=self.device)
         return Div.apply(self,other,inplace=True)
     div = __truediv__
     div_ = __idiv__
+    def __pow__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other = Tensor(other)
+        return Pow.apply(self,other)
+    def __ipow__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other)
+        return Pow.apply(self,other,inplace=True)
+    def __rpow__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other)
+        return Pow.apply(other,self)
+    pow = __pow__
+    pow_= __ipow__
     def __matmul__(self,other:'Tensor')->'Tensor':
         if self.ndim == 0 or other.ndim==0:raise RuntimeError
         if self.ndim==2 and other.ndim==2:
@@ -162,19 +171,7 @@ class Tensor:
         elif self.ndim > 2 and other.ndim == 1:
             return Squeeze.apply(Bmm.apply(self,Unsqueeze.apply(other,-1)),-1)
         elif self.ndim == 1 and other.ndim > 2:
-            print(self.shape)
-            print((-1,*self.shape))
             return Squeeze.apply(Bmm.apply(View.apply(self,(-1,*self.shape)),other),-2)
         else:
             return Bmm.apply(self,other)
-
-
-
-
-    
-
-
-        
-
-
 
