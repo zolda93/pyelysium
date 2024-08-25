@@ -111,7 +111,7 @@ class Sqrt(Function):
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Union['Tensor',None]:
         a = ctx.get_saved_tensors()[0]
-        return (e.Tensor(grad.data / (a.data * 2),device=a.device,dtype=a.dtype),) 
+        return (e.Tensor(grad.data / (2 * (a.data ** (1/2))),device=a.device,dtype=a.dtype),) 
 
 class Exp(Function):
     @staticmethod
