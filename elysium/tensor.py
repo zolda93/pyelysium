@@ -1,5 +1,5 @@
 from typing import Tuple,List,Union,Optional,TypeVar
-from elysium import np,cp,ConstType,Dtype,TensorType
+from elysium import np,cp,ConstType,Dtype,TensorType,no_grad
 from .autograd.grad_fcn import *
 T = TypeVar('T',bound='Tensor')
 
@@ -11,7 +11,7 @@ class Tensor:
             requires_grad:Optional[bool]=False,
             device:Optional[Union[str,tuple,list]]='cpu',
             dtype:Optional[Dtype] = np.float32)->None:
-        self._requires_grad = requires_grad
+        self._requires_grad = requires_grad and not no_grad._enabled
         self.grad = None
         self._ctx = None
         self.device = device

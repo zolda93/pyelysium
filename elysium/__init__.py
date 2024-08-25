@@ -35,6 +35,18 @@ if  CUPY_AVAILABLE:
             except Exception as e:
                 print(f"GPU {gpu_id}: Error setting memory pool limit: {e}")
 
+
+class no_grad:
+    _enabled = False  # Class-level attribute to track no_grad status
+
+    def __enter__(self):
+        self.prev = no_grad._enabled  # Save the previous state
+        no_grad._enabled = True  # Disable gradient tracking
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        no_grad._enabled = self.prev  # Restore the previous state
+
 from .tensor import *
 
 
