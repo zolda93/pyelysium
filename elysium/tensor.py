@@ -124,6 +124,10 @@ class Tensor:
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
     def sqrt(self)->'Tensor':return Sqrt.apply(self)
     def exp(self)->'Tensor':return Exp.apply(self)
+    def cos(self)->'Tensor':return Cos.apply(self)
+    def sin(self)->'Tensor':return Sin.apply(self)
+    def tan(self)->'Tensor':return Tan.apply(self)
+    def log(self)->'Tensor':return Log.apply(self)
     def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
     def view(self,shape):return View.apply(self,shape)
     def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
