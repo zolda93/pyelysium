@@ -153,7 +153,7 @@ class Sin(Function):
     def forward(ctx:Context,a:'Tensor')->'Tensor':
         ctx.save_for_backward(a)
         xp = cp if a.device == 'gpu' else np
-        return e.Tensor(xp.ain(a.data),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(xp.sin(a.data),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
@@ -170,7 +170,7 @@ class Tan(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
-        return (e.Tensor(grad.data/(xp.cos(a.data ** 2)),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+        return (e.Tensor(grad.data/(xp.cos(a.data)**2),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 
 class Mv(Function):
     @staticmethod
