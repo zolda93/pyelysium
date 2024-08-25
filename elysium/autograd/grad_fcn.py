@@ -111,7 +111,8 @@ class Sqrt(Function):
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
-        return (e.Tensor(grad.data / (2 * (a.data ** (1/2))),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
+        xp = cp if a.device == 'gpu' else np
+        return (e.Tensor(grad.data / (2 * xp.sqrt(a.data)),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
 
 class Exp(Function):
     @staticmethod
@@ -234,6 +235,24 @@ class Sum(Function):
         for i in axis:strides[i] = 0
         return (e.Tensor(xp.lib.stride_tricks.as_strided(grad,shape=a.shape,strides=strides),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
 
+class Mean(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',axis:Union[Tuple[int,...],None]=None,keepdims:Optional[bool]=False)->'Tensor':
+        if axis is None:axis=tuple(range(a.ndim))
+        axis = (axis,) if isinstance(axis,int) else axis
+        ctx.axis,ctx.keepdims = axis,keepdims
+        ctx.save_for_backward(a)
+        return e.Tensor(a.data.mean(axis=axis,keepdims=keepdims),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        axis,keepdims = ctx.axis,ctx.keepdims
+        grad = grad.data
+        xp = cp if a.device == 'gpu' else np
+        divisor = xp.prod(xp.array([a.shape[i] for i in axis])) if axis is not None else a.size
+        if not keepdims:grad = xp.expand_dims(grad,axis=axis)
+        new_strides = tuple(0 if i in axis else s for i, s in enumerate(grad.strides))
+        return (e.Tensor(xp.lib.stride_tricks.as_strided(grad / divisor, shape=a.shape, strides=new_strides),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 class View(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',shape)->'Tensor':

@@ -87,7 +87,7 @@ class Tensor:
         grad_fn = ' ,grad_fn<' + self._ctx.func.__name__ + 'Backward' + str(self.device)+'>' if self._ctx is not None and self.requires_grad else ''
         dtype = f' ,dtype=elysium.{self.data.dtype}'
         if self.data is None:return str(None)
-        s = np.array2string(self.data, separator=', ', precision=4).replace('\n', '\n' + ' ' * 7)
+        s = xp.array2string(self.data, separator=', ', precision=4).replace('\n', '\n' + ' ' * 7)
         return f"tensor({s}{grad_fn}{dtype})"
     def numpy(self)->np.ndarray:
         if self.requires_grad:raise RuntimeError(f"Can't call numpy() on a Tensor that requires_grad ,Use tensor.detach().numpy()")
@@ -128,7 +128,8 @@ class Tensor:
     def sin(self)->'Tensor':return Sin.apply(self)
     def tan(self)->'Tensor':return Tan.apply(self)
     def log(self)->'Tensor':return Log.apply(self)
-    def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False):return Sum.apply(self,axis=axis,keepdim=keepdim)
+    def sum(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False)->'Tensor':return Sum.apply(self,axis=axis,keepdim=keepdim)
+    def mean(self,axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False)->'Tensor':return Mean.apply(self,axis=axis,keepdims=keepdim)
     def view(self,shape):return View.apply(self,shape)
     def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
     def unsqueeze(self,dim:Tuple[int,...])->'Tensor':return Unsqueeze.apply(self,dim)
