@@ -17,8 +17,6 @@ class Neg(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.saved_tensors[0]
         return (-grad if a.requires_grad else None,)
-
-
 class Add(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -34,7 +32,6 @@ class Add(Function):
         grad_a = sum_to_shape(grad.data,a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(grad.data,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Sub(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -50,7 +47,6 @@ class Sub(Function):
         grad_a = sum_to_shape(grad.data,a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(-grad.data,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Mul(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -66,7 +62,6 @@ class Mul(Function):
         grad_a = sum_to_shape(grad.data * b.data ,a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(grad.data * a.data ,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Div(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -82,8 +77,6 @@ class Div(Function):
         grad_a = sum_to_shape(grad.data / b.data,a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(-(grad.data * a.data) / (b.data + 1e-8)**2,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
-
-
 class Pow(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -99,7 +92,6 @@ class Pow(Function):
         grad_a = sum_to_shape(grad.data * b.data * (a.data ** (b.data - 1)),a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(grad.data * (a.data ** b.data) * xp.log(a.data),b.shape) if b.requires_grad else None
         return (grad_a, grad_b)
-
 class Sqrt(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',inplace:Optional[bool]=False)->'Tensor':
@@ -115,7 +107,6 @@ class Sqrt(Function):
         grad_data = xp.ascontiguousarray(grad.data)
         out = 0.5 * grad_data / xp.sqrt(a.data)
         return (e.Tensor(out,device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
-
 class Exp(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -127,7 +118,6 @@ class Exp(Function):
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
         return (e.Tensor(grad.data * xp.exp(a.data),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
 class Log(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -138,7 +128,6 @@ class Log(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
         return (e.Tensor(grad.data / a.data,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
 class Cos(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -150,7 +139,6 @@ class Cos(Function):
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
         return (e.Tensor(-grad.data * xp.sin(a.data),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
 class Sin(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -162,7 +150,6 @@ class Sin(Function):
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
         return (e.Tensor(grad.data * xp.cos(a.data),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
 class Tan(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':
@@ -174,7 +161,6 @@ class Tan(Function):
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
         return (e.Tensor(grad.data/(xp.cos(a.data)**2),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
 class Mv(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor')->'Tensor':
@@ -188,7 +174,6 @@ class Mv(Function):
         grad_a = e.Tensor(grad.data[:,None]@b.data[None],device=a.device,dtype=a.dtype) if a.requires_grad else None
         grad_b = e.Tensor(a.data.T@grad.data,device=b.device,dtype=b.dtype) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Mm(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor')->'Tensor':
@@ -202,7 +187,6 @@ class Mm(Function):
         grad_a = e.Tensor(grad.data@b.data.T,device=a.device,dtype=a.dtype) if a.requires_grad else None
         grad_b = e.Tensor(a.data.T@grad.data,device=b.device,dtype=b.dtype) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Bmm(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',b:'Tensor')->'Tensor':
@@ -215,7 +199,6 @@ class Bmm(Function):
         grad_a = sum_to_shape(grad.data@xp.swapaxes(b.data,-1,-2),a.shape) if a.requires_grad else None
         grad_b = sum_to_shape(xp.swapaxes(a.data,-1,-2)@grad.data,b.shape) if b.requires_grad else None
         return (grad_a,grad_b)
-
 class Sum(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',axis:Union[Tuple[int,...],None]=None,keepdim:Optional[bool]=False)->'Tensor':
@@ -235,7 +218,6 @@ class Sum(Function):
         strides = list(grad.strides)
         for i in axis:strides[i] = 0
         return (e.Tensor(xp.lib.stride_tricks.as_strided(grad,shape=a.shape,strides=strides),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
-
 class Mean(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',axis:Union[Tuple[int,...],None]=None,keepdims:Optional[bool]=False)->'Tensor':
@@ -264,7 +246,6 @@ class View(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
         return (e.Tensor(grad.data.reshape(a.shape),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
-
 class Squeeze(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',dim:Union[Tuple[int,...],None]=None)->'Tensor':
@@ -280,7 +261,6 @@ class Squeeze(Function):
         dim = ctx.dim
         xp = cp if a.device=='gpu' else np
         return (e.Tensor(xp.expand_dims(grad.data,axis=dim),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
-
 class Unsqueeze(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',dim:Tuple[int,...])->'Tensor':
@@ -293,4 +273,51 @@ class Unsqueeze(Function):
         a = ctx.get_saved_tensors()[0]
         dim = ctx.dim
         return (e.Tensor(grad.data.squeeze(axis=dim),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Index(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',key)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.key=key
+        if isinstance(key,(int,list,bool,tuple,slice)):
+            return e.Tensor(a.data[key],requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(a.data[key.data],requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a= ctx.get_saved_tensors()[0]
+        key=ctx.key
+        xp = cp if a.device=='gpu' else np
+        grad_a = xp.zeros_like(a.data)
+        if isinstance(key,(int,list,bool,tuple,slice)):
+            grad_a[key] = grad.data
+            return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+        for i, idx in enumerate(key.data):grad_a[idx] += grad.data[i]
+        return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Transpose(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',dim0:int,dim1:int)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.dim0,ctx.dim1 = dim0,dim1
+        xp = cp if a.device=='gpu' else np
+        return e.Tensor(xp.swapaxes(a.data,dim0,dim1),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        dim0,dim1=ctx.dim0,ctx.dim1
+        xp = cp if a.device=='gpu' else np
+        return (e.Tensor(xp.swapaxes(grad.data,dim0,dim1),device=a.device,dtype=a.dtype)if a.requires_grad else None,)
+class Permute(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',dim1:Tuple[int,...])->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.dims=dims
+        xp = cp if a.device=='gpu' else np
+        return e.Tensor(xp.transpose(a.data,dims),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a=ctx.get_saved_tensors()[0]
+        dims = ctx.dims
+        xp = cp if a.device=='gpu' else np
+        return (e.Tensor(xp.transpose(grad.data,axes=np.argsort(dims)),device=a.device,dtype=grad.dtype) if a.requires_grad else None,)
+
+
 

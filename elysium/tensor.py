@@ -132,6 +132,22 @@ class Tensor:
     def view(self,shape):return View.apply(self,shape)
     def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
     def unsqueeze(self,dim:Tuple[int,...])->'Tensor':return Unsqueeze.apply(self,dim)
+    def transpose(self,dim0:int,dim1:int)->'Tensor':return Transpose.apply(self,dim0,dim1)
+    def permute(self,dims:Tuple[int,...])->'Tensor':return Permute.apply(self,dims)
+    def __getitem__(self,key)->'Tensor':
+        xp = cp if self.device == 'gpu' else np
+        if isinstance(key,(int,list,bool,tuple,slice)):
+            key=key
+        elif isinstance(key,Tensor):
+            key = key.data.astype(xp.int64)
+            key=Tensor(key,dtype=key.dtype).to(self.device)
+        else:
+            raise RuntimeError(f'Invalid indexinig type: expected int,list,tuple,bool or tensors of long or bool')
+        
+        return Index.apply(self,key)
+        
+    def __hash__(self):
+        return id(self)
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
     def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
@@ -180,7 +196,7 @@ class Tensor:
         elif self.ndim > 2 and other.ndim == 1:
             return Squeeze.apply(Bmm.apply(self,Unsqueeze.apply(other,-1)),-1)
         elif self.ndim == 1 and other.ndim > 2:
-            return Squeeze.apply(Bmm.apply(View.apply(self,(-1,*self.shape)),other),-2)
+            return Squeeze.apply(Bmm.apply(View.apply(self,(1,*self.shape)),other),-2)
         else:
             return Bmm.apply(self,other)
 
