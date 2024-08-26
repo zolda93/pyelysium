@@ -112,7 +112,9 @@ class Sqrt(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
         xp = cp if a.device == 'gpu' else np
-        return (e.Tensor(grad.data / (2 * xp.sqrt(a.data)),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
+        grad_data = xp.ascontiguousarray(grad.data)
+        out = 0.5 * grad_data / xp.sqrt(a.data)
+        return (e.Tensor(out,device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
 
 class Exp(Function):
     @staticmethod
@@ -221,8 +223,7 @@ class Sum(Function):
         axis = (axis,) if isinstance(axis,int) else axis
         ctx.save_for_backward(a)
         ctx.axis,ctx.keepdim = axis,keepdim
-        xp = cp if a.device == 'gpu' else np
-        return e.Tensor(xp.sum(a.data,axis=axis,keepdims=keepdim),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(a.data.sum(axis=axis,keepdims=keepdim),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
@@ -252,18 +253,17 @@ class Mean(Function):
         divisor = xp.prod(xp.array([a.shape[i] for i in axis])) if axis is not None else a.size
         if not keepdims:grad = xp.expand_dims(grad,axis=axis)
         new_strides = tuple(0 if i in axis else s for i, s in enumerate(grad.strides))
-        return (e.Tensor(xp.lib.stride_tricks.as_strided(grad / divisor, shape=a.shape, strides=new_strides),device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+        out = xp.lib.stride_tricks.as_strided(xp.divide(grad, divisor,dtype=grad.dtype), shape=a.shape, strides=new_strides)
+        return (e.Tensor(out,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 class View(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',shape)->'Tensor':
         ctx.save_for_backward(a)
-        ctx.shape = shape
         return e.Tensor(a.data.reshape(shape),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
-        shape = ctx.shape
-        return (e.Tensor(grad.data.reshape(shape),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
+        return (e.Tensor(grad.data.reshape(a.shape),device=a.device,dtype=a.dtype) if a.requires_grad else None,) 
 
 class Squeeze(Function):
     @staticmethod

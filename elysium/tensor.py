@@ -51,10 +51,9 @@ class Tensor:
         if not self._is_floating_point():
             raise ValueError("Cannot require gradients for non-floating-point tensor types.")
         self._requires_grad = value
-        if value and self.grad is None:
-            self.grad = Tensor(np.zeros_like(self.data), requires_grad=False, device=self.device)
     def is_floating_point(self)->bool:
-        return self.data.dtype in [np.float16,np.float32,np.float64]
+        xp = cp if self.device == 'gpu' else np
+        return self.data.dtype in [xp.float16,xp.float32,xp.float64]
     @property
     def shape(self)->Tuple[int,...]:return self.data.shape
     @property
@@ -87,7 +86,7 @@ class Tensor:
         grad_fn = ' ,grad_fn<' + self._ctx.func.__name__ + 'Backward' + str(self.device)+'>' if self._ctx is not None and self.requires_grad else ''
         dtype = f' ,dtype=elysium.{self.data.dtype}'
         if self.data is None:return str(None)
-        s = xp.array2string(self.data, separator=', ', precision=4).replace('\n', '\n' + ' ' * 7)
+        s = np.array2string(self.data, separator=', ', precision=4).replace('\n', '\n' + ' ' * 7)
         return f"tensor({s}{grad_fn}{dtype})"
     def numpy(self)->np.ndarray:
         if self.requires_grad:raise RuntimeError(f"Can't call numpy() on a Tensor that requires_grad ,Use tensor.detach().numpy()")
