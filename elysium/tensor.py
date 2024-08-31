@@ -26,7 +26,7 @@ class Tensor:
     def _initialize_data(self,data:Optional[TensorType],lib,dtype:Dtype):
         if data is None:
             return lib.array([],dtype=dtype)
-        elif isinstance(data,(float,int,bool,list,lib.float16,lib.float32,lib.float64)):
+        elif isinstance(data,(float,int,bool,list)):
             return lib.array(data,dtype=dtype)
         elif lib is cp:
             if isinstance(data,np.ndarray):return lib.array(data,dtype=dtype)
@@ -62,6 +62,9 @@ class Tensor:
     def dtype(self)->Dtype:return self.data.dtype
     @property
     def ndim(self)->int:return self.data.ndim
+    def astype(self,dtype):
+        self.data = self.data.astype(dtype)
+        return self
     def to(self,device:str)->'Tensor':
         if device == self.device:
             return self
@@ -134,6 +137,7 @@ class Tensor:
     def unsqueeze(self,dim:Tuple[int,...])->'Tensor':return Unsqueeze.apply(self,dim)
     def transpose(self,dim0:int,dim1:int)->'Tensor':return Transpose.apply(self,dim0,dim1)
     def permute(self,dims:Tuple[int,...])->'Tensor':return Permute.apply(self,dims)
+    def expand(self,shape)->'Tensor':return Expand.apply(self,shape)
     def __getitem__(self,key)->'Tensor':
         xp = cp if self.device == 'gpu' else np
         key=(key,) if not isinstance(key,tuple) else key

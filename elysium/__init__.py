@@ -30,7 +30,7 @@ if  CUPY_AVAILABLE:
                 # Set memory pool limit for the current device
                 mempool = cp.get_default_memory_pool()
                 mempool.set_limit(available_memory_bytes)
-                #print(f"GPU {gpu_id}: Memory pool limit set to {available_memory_bytes / (1024**3):.2f} GB")
+            
 
             except Exception as e:
                 print(f"GPU {gpu_id}: Error setting memory pool limit: {e}")

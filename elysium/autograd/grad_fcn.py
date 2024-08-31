@@ -324,5 +324,19 @@ class Permute(Function):
         xp = cp if a.device=='gpu' else np
         return (e.Tensor(xp.transpose(grad.data,axes=np.argsort(dims)),device=a.device,dtype=grad.dtype) if a.requires_grad else None,)
 
+class Expand(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',shape)->'Tensor':
+        ctx.save_for_backward(a)
+        shape = tuple([s if shape[dim] == -1 else shape[dim]  for dim,s in enumerate(a.shape)])
+        xp = cp if a.device == 'gpu' else np
+        return e.Tensor(xp.broadcast_to(a.data,shape),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        num_new_dims = len(grad.shape) - len(a.shape)
+        input_shape = (1,) * num_new_dims + a.shape
+        grad_a= grad.data.sum(axis=tuple(i for i, (s, d) in enumerate(zip(a.shape, grad.shape)) if s == 1)).reshape(a.shape[-len(a.shape):])
+        return (e.Tensor(grad_a,device=a.device) if a.requires_grad else None,)
 
 
