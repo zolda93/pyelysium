@@ -338,5 +338,37 @@ class Expand(Function):
         input_shape = (1,) * num_new_dims + a.shape
         grad_a= grad.data.sum(axis=tuple(i for i, (s, d) in enumerate(zip(a.shape, grad.shape)) if s == 1)).reshape(a.shape[-len(a.shape):])
         return (e.Tensor(grad_a,device=a.device) if a.requires_grad else None,)
+class Repeat_Interleave(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',repeats:Union[int,List[int]],axis:Union[int,None]=None)->'Tensor':
+        ctx.save_for_backward(a)
+        xp=cp if a.device=='gpu' else np
+        ctx.repeats,ctx.axis=repeats,axis
+        if isinstance(repeats,list):repeats=xp.array(repeats)
+        return e.Tensor(xp.repeat(a.data,repeats,axis=axis),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        repeats,axis=ctx.repeats,ctx.axis
+        xp=cp if a.device=='gpu' else np
+        if axis is None:
+            if isinstance(repeats,list):
+                grad_a,idx=[],0
+                for i,rep in enumerate(repeats):
+                    grad_a.append(xp.sum(grad.data[idx:idx+rep]))
+                    idx+=rep
+                grad_a = xp.array(grad_a).reshape(a.shape)
+                return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.reuqires_grad else None,)
+            else:
+                grad_a = xp.add.reduceat(grad.data,xp.arange(0,grad.data.size,repeats)).reshape(a.shape)
+                return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+        else:
+            if isinstance(repeats,int):repeats=[repeats]*a.shape[axis]
+            grad_a = xp.concatenate([
+                xp.sum(t,axis=axis,keepdims=True)
+                for t in xp.split(grad.data,indices_or_sections=xp.cumsum(repeats)[:-1],axis=axis)
+                ],axis=axis)
+            return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+
 
 

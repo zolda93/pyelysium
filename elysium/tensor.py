@@ -138,6 +138,7 @@ class Tensor:
     def transpose(self,dim0:int,dim1:int)->'Tensor':return Transpose.apply(self,dim0,dim1)
     def permute(self,dims:Tuple[int,...])->'Tensor':return Permute.apply(self,dims)
     def expand(self,shape)->'Tensor':return Expand.apply(self,shape)
+    def repeat_interleave(self,repeats:Union[int,List[int]],axis=None)->'Tensor':return Repeat_Interleave.apply(self,repeats,axis=axis)
     def __getitem__(self,key)->'Tensor':
         xp = cp if self.device == 'gpu' else np
         key=(key,) if not isinstance(key,tuple) else key
