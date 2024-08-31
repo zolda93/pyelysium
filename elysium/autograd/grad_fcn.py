@@ -278,19 +278,24 @@ class Index(Function):
     def forward(ctx:Context,a:'Tensor',key)->'Tensor':
         ctx.save_for_backward(a)
         ctx.key=key
-        if isinstance(key,(int,list,bool,tuple,slice)):
-            return e.Tensor(a.data[key],requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
-        return e.Tensor(a.data[key.data],requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(a.data[key],requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a= ctx.get_saved_tensors()[0]
         key=ctx.key
         xp = cp if a.device=='gpu' else np
-        grad_a = xp.zeros_like(a.data)
-        if isinstance(key,(int,list,bool,tuple,slice)):
-            grad_a[key] = grad.data
-            return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-        for i, idx in enumerate(key.data):grad_a[idx] += grad.data[i]
+        grad_a = cp.zeros_like(a.data)
+        if xp is cp:
+            import cupyx
+            add_at = cupyx.scatter_add
+        else:
+            add_at = np.add.at
+        if isinstance(key,tuple):
+            add_at(grad_a,key,grad.data)
+        elif isinstance(key,xp.ndarray) and key.dtype==bool:
+            add_at(grad_a,xp.where(key),grad.data)
+        else:
+            add_at(grad_a,key,grad.data)
         return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 class Transpose(Function):
     @staticmethod

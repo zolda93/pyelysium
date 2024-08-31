@@ -136,18 +136,10 @@ class Tensor:
     def permute(self,dims:Tuple[int,...])->'Tensor':return Permute.apply(self,dims)
     def __getitem__(self,key)->'Tensor':
         xp = cp if self.device == 'gpu' else np
-        if isinstance(key,(int,list,bool,tuple,slice)):
-            key=key
-        elif isinstance(key,Tensor):
-            key = key.data.astype(xp.int64)
-            key=Tensor(key,dtype=key.dtype).to(self.device)
-        else:
-            raise RuntimeError(f'Invalid indexinig type: expected int,list,tuple,bool or tensors of long or bool')
-        
+        key=(key,) if not isinstance(key,tuple) else key
+        key = tuple(list((i.to(self.device).data.astype(xp.int32) if isinstance(i,Tensor) else i  for i in key)))
         return Index.apply(self,key)
-        
-    def __hash__(self):
-        return id(self)
+    def __hash__(self):return id(self)
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
     def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
