@@ -290,12 +290,7 @@ class Index(Function):
             add_at = cupyx.scatter_add
         else:
             add_at = np.add.at
-        if isinstance(key,tuple):
-            add_at(grad_a,key,grad.data)
-        elif isinstance(key,xp.ndarray) and key.dtype==bool:
-            add_at(grad_a,xp.where(key),grad.data)
-        else:
-            add_at(grad_a,key,grad.data)
+        add_at(grad_a,key,grad.data)
         return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 class Transpose(Function):
     @staticmethod
