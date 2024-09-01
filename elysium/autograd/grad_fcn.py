@@ -369,9 +369,9 @@ class Repeat(Function):
         ctx.save_for_backward(a)
         ctx.reps = reps
         xp = cp if a.device=='gpu' else np
-        return s.Tensor(xp.tile(a.data,reps),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+        return e.Tensor(xp.tile(a.data,reps),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
-    def bacwkard(ctx,grad:'Tensor')->Tuplr[Union['Tensor',None],...]:
+    def bacwkard(ctx,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         a = ctx.get_saved_tensors()[0]
         reps = ctx.reps
         base_shape = (1,) *(len(reps) - a.ndim) + a.shape
