@@ -284,7 +284,7 @@ class Index(Function):
         a= ctx.get_saved_tensors()[0]
         key=ctx.key
         xp = cp if a.device=='gpu' else np
-        grad_a = cp.zeros_like(a.data)
+        grad_a = xp.zeros_like(a.data)
         if xp is cp:
             import cupyx
             add_at = cupyx.scatter_add
@@ -318,7 +318,6 @@ class Permute(Function):
         dims = ctx.dims
         xp = cp if a.device=='gpu' else np
         return (e.Tensor(xp.transpose(grad.data,axes=np.argsort(dims)),device=a.device,dtype=grad.dtype) if a.requires_grad else None,)
-
 class Expand(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',shape)->'Tensor':
@@ -364,6 +363,21 @@ class Repeat_Interleave(Function):
                 for t in xp.split(grad.data,indices_or_sections=xp.cumsum(repeats)[:-1],axis=axis)
                 ],axis=axis)
             return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
-
+class Repeat(Function):
+    @staticmethod
+    def forward(ctx,a:'Tensor',reps)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.reps = reps
+        xp = cp if a.device=='gpu' else np
+        return s.Tensor(xp.tile(a.data,reps),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def bacwkard(ctx,grad:'Tensor')->Tuplr[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        reps = ctx.reps
+        base_shape = (1,) *(len(reps) - a.ndim) + a.shape
+        new_shape = [x for b in base_shape for x in [1, b]]
+        expand_shape = [x for rs in zip(reps, base_shape) for x in rs]
+        grad = grad.data.reshape(expand_shape)
+        grad_a=grad.sum(axis=tuple(i for i, (s, d) in enumerate(zip(new_shape, grad.shape)) if s == 1)).reshape(a.shape)
+        return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
 
