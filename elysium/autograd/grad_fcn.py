@@ -445,3 +445,27 @@ class MaskedFill(Function):
         #grad_a = np.zeros(a.shape)
         #grad_a[mask] = grad.data[mask]
         #return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Max(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',axis:Union[Tuple[int,...],int,None]=None,keepdims:Optional[bool]=False)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.axis = axis if axis is not None else tuple(range(a.ndim))
+        ctx.keepdims = keepdims
+        xp = cp if a.device=='gpu' else np
+        out = xp.max(a.data,axis=axis,keepdims=keepdims)
+        ctx.out=out
+        return e.Tensor(out,requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx,grad):
+        a = ctx.get_saved_tensors()[0]
+        axis=ctx.axis
+        keepdims = ctx.keepdims
+        out = ctx.out
+        grad = grad.data
+        xp = cp if a.device=='gpu' else np
+        mask = (a.data == xp.expand_dims(out,axis=axis)) if not keepdims else (a.data == out)
+        count = xp.sum(mask,axis=axis,keepdims=True) 
+        if not keepdims:grad = xp.expand_dims(grad,axis)
+        distributed_grad = grad / count
+        grad_a = mask * distributed_grad
+        return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)

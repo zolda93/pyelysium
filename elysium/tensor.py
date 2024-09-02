@@ -131,6 +131,7 @@ class Tensor:
     def sin(self)->'Tensor':return Sin.apply(self)
     def tan(self)->'Tensor':return Tan.apply(self)
     def log(self)->'Tensor':return Log.apply(self)
+    def max(self,axis:Union[Tuple[int,...],int,None]=None,keepdims:Optional[bool]=False)->'Tensor':return Max.apply(self,axis=axis,keepdims=keepdims)
     def sum(self,axis:Union[Tuple[int,...],int,None]=None,keepdim:Optional[bool]=False)->'Tensor':return Sum.apply(self,axis=axis,keepdim=keepdim)
     def mean(self,axis:Union[Tuple[int,...],int,None]=None,keepdim:Optional[bool]=False)->'Tensor':return Mean.apply(self,axis=axis,keepdims=keepdim)
     def var(self,dim:Union[Tuple[int,...],int,None]=None,correction=1,keepdim=False)->'Tensor':return Var.apply(self,dim=dim,correction=correction,keepdim=keepdim)
