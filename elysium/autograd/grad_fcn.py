@@ -469,3 +469,27 @@ class Max(Function):
         distributed_grad = grad / count
         grad_a = mask * distributed_grad
         return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Concat(Function):
+    @staticmethod
+    def forward(ctx:Context,ts,axis:Union[int,None]=0)->'Tensor':
+        ctx.save_for_backward(*ts)
+        xp = cp if ts[0].device=='gpu' else np
+        data = tuple(t.data for t in ts)
+        indices = xp.cumsum([t.shape[axis] for t in ts])
+        ctx.indices,ctx.axis=indices,axis
+        return e.Tensor(xp.concatenate(data,axis),requires_grad=any(t.requires_grad for t in ts),device=ts[0].device,dtype=ts[0].dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        ts = ctx.get_saved_tensors()
+        indices = ctx.indices
+        xp = cp if ts[0].device=='gpu' else np
+        grad = xp.split(grad.data,indices_or_sections=indices,axis=axis)
+        grads = []
+        for i,t in enumerate(ts):
+            grad_t = e.Tensor(grad[i],device=t.device,dtype=t.dtype) if t.requires_grad else None
+            grads.append(grad_t)
+        return tuple(grads)
+
+
+
+

@@ -145,6 +145,8 @@ class Tensor:
     def repeat_interleave(self,repeats:Union[int,List[int]],axis=None)->'Tensor':return Repeat_Interleave.apply(self,repeats,axis=axis)
     def repeat(self,reps)->'Tensor':return Repeat.apply(self,reps)
     def masked_fill(self,mask:'Tensor',val:float)->'Tensor':return MaskedFill.apply(self,mask,val)
+    @staticmethod
+    def cat(ts,axis=0)->'Tensor':return Concat.apply(ts,axis=axis)
     def __getitem__(self,key)->'Tensor':
         xp = cp if self.device == 'gpu' else np
         key=(key,) if not isinstance(key,tuple) else key
