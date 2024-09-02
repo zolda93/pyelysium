@@ -237,6 +237,34 @@ class Mean(Function):
         new_strides = tuple(0 if i in axis else s for i, s in enumerate(grad.strides))
         out = xp.lib.stride_tricks.as_strided(xp.divide(grad, divisor,dtype=grad.dtype), shape=a.shape, strides=new_strides)
         return (e.Tensor(out,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Var(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',dim:Union[Tuple[int,...],int,None]=None,correction=1,keepdim=False)->'Tensor':
+        ctx.save_for_backward(a)
+        ctx.dim,ctx.correction,ctx.keepdim=dim,correction,keepdim
+        xp = cp if a.device=='gpu' else np
+        mean = xp.mean(a.data,axis=dim,keepdims=True)
+        if dim is None:
+            n = a.data.size
+        elif isinstance(dim,int):
+            n = a.shape[dim]
+        else:
+            n = xp.prod([a.shape[d] for d in dim])
+        ctx.n = n
+        ctx.mean = mean
+        var = xp.sum((a.data - mean) ** 2, axis=dim, keepdims=keepdim) / (n - correction)
+        return e.Tensor(var,requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->'Tensor':
+        a = ctx.get_saved_tensors()[0]
+        dim,correction,keepdim=ctx.dim,ctx.correction,ctx.keepdim
+        n,mean = ctx.n,ctx.mean
+        xp = cp if a.device=='gpu' else np
+        grad = grad.data
+        grad_a = 2 * xp.divide(a.data - mean,n-correction)
+        if not keepdim and dim is not None:grad = xp.expand_dims(grad,axis=dim)
+        grad_a *= grad
+        return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a .requires_grad else None,)  
 class View(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',shape)->'Tensor':
