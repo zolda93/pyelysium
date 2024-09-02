@@ -481,7 +481,7 @@ class Concat(Function):
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         ts = ctx.get_saved_tensors()
-        indices = ctx.indices
+        indices,axis = ctx.indices,ctx.axis
         xp = cp if ts[0].device=='gpu' else np
         grad = xp.split(grad.data,indices_or_sections=indices,axis=axis)
         grads = []
@@ -489,7 +489,30 @@ class Concat(Function):
             grad_t = e.Tensor(grad[i],device=t.device,dtype=t.dtype) if t.requires_grad else None
             grads.append(grad_t)
         return tuple(grads)
-
-
-
+class Tril(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',diagonal=0)->'Tensor':
+        ctx.diagonal = diagonal
+        ctx.save_for_backward(a)
+        xp = cp if a.device=='gpu' else np
+        return e.Tensor(xp.tril(a.data,k=diagonal),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        diagonal = ctx.diagonal
+        a = ctx.get_saved_tensors()[0]
+        xp = cp if a.device=='gpu' else np
+        return (e.Tensor(xp.tril(grad.data,k=diagonal)) if a.requires_grad else None,)
+class Triu(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',diagonal=0)->'Tensor':
+        ctx.diagonal = diagonal
+        ctx.save_for_backward(a)
+        xp = cp if a.device=='gpu' else np
+        return e.Tensor(xp.triu(a.data,k=diagonal),requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->'Tensor':
+        diagonal = ctx.diagonal
+        a = ctx.get_saved_tensors()[0]
+        xp = cp if a.device=='gpu' else np
+        return (e.Tensor(xp.triu(grad.data,k=diagonal)) if a.requires_grad else None,)
 

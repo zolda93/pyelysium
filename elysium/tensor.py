@@ -51,7 +51,7 @@ class Tensor:
         if not self._is_floating_point():
             raise ValueError("Cannot require gradients for non-floating-point tensor types.")
         self._requires_grad = value
-    def is_floating_point(self)->bool:
+    def _is_floating_point(self)->bool:
         xp = cp if self.device == 'gpu' else np
         return self.data.dtype in [xp.float16,xp.float32,xp.float64]
     @property
@@ -145,6 +145,8 @@ class Tensor:
     def repeat_interleave(self,repeats:Union[int,List[int]],axis=None)->'Tensor':return Repeat_Interleave.apply(self,repeats,axis=axis)
     def repeat(self,reps)->'Tensor':return Repeat.apply(self,reps)
     def masked_fill(self,mask:'Tensor',val:float)->'Tensor':return MaskedFill.apply(self,mask,val)
+    def tril(self,diagonal=0):return Tril.apply(self,diagonal=diagonal)
+    def triu(self,diagonal=0):return Triu.apply(self,diagonal=diagonal)
     @staticmethod
     def cat(ts,axis=0)->'Tensor':return Concat.apply(ts,axis=axis)
     def __getitem__(self,key)->'Tensor':
