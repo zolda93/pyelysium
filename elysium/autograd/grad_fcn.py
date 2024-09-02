@@ -408,4 +408,40 @@ class Repeat(Function):
         grad = grad.data.reshape(expand_shape)
         grad_a=grad.sum(axis=tuple(i for i, (s, d) in enumerate(zip(new_shape, grad.shape)) if s == 1)).reshape(a.shape)
         return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
-
+class MaskedFill(Function):
+    @staticmethod
+    def forward(ctx:Context,a:'Tensor',mask:'Tensor',val:float)->'Tensor':
+        ctx.save_for_backward(a)
+        xp = cp if a.device=='gpu' else np
+        value = a.data.copy()
+        mask = xp.lib.stride_tricks.as_strided(mask.data, shape=value.shape,strides=(0,) * (value.ndim - mask.ndim) + mask.strides)
+        ctx.mask=mask
+        value[mask]=val
+        return e.Tensor(value,requires_grad=a.requires_grad,device=a.device,dtype=a.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        a = ctx.get_saved_tensors()[0]
+        mask = ctx.mask
+        xp = cp if a.device=='gpu' else np
+        grad_a = xp.zeros_like(a.data)
+        grad_a[~mask] = grad.data[~mask]
+        return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+#class _MaskedFill(Function):
+ #   @staticmethod
+  #  def forward(ctx:Context,a:'Tensor',mask:'Tensor',val:float)->'Tensor':
+   #     ctx.save_for_backward(a)
+    #    value = a.data.copy()
+     #   xp = cp if a.device=='gpu' else np
+      #  mask = xp.broadcast_to(mask.data,a.shape).astype(xp.bool)
+       # ctx.mask = mask
+       # print(mask)
+       # value[mask] = val
+        #return e.Tensor(value,requires_grad=a.requires_grad,device=a.device)
+    #@staticmethod
+    #def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+     #   a = ctx.get_saved_tensors()[0]
+      #  mask = ctx.mask
+       # mask = ~mask
+        #grad_a = np.zeros(a.shape)
+        #grad_a[mask] = grad.data[mask]
+        #return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)

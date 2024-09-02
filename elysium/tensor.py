@@ -57,14 +57,15 @@ class Tensor:
     @property
     def shape(self)->Tuple[int,...]:return self.data.shape
     @property
-    def size(self)->int:return self.data.size
-    @property
     def dtype(self)->Dtype:return self.data.dtype
+    @property
+    def strides(self):return self.data.strides
     @property
     def ndim(self)->int:return self.data.ndim
     def astype(self,dtype):
         self.data = self.data.astype(dtype)
         return self
+    def numel(self):return self.data.size
     def to(self,device:str)->'Tensor':
         if device == self.device:
             return self
@@ -141,12 +142,14 @@ class Tensor:
     def expand(self,shape)->'Tensor':return Expand.apply(self,shape)
     def repeat_interleave(self,repeats:Union[int,List[int]],axis=None)->'Tensor':return Repeat_Interleave.apply(self,repeats,axis=axis)
     def repeat(self,reps)->'Tensor':return Repeat.apply(self,reps)
+    def masked_fill(self,mask:'Tensor',val:float)->'Tensor':return MaskedFill.apply(self,mask,val)
     def __getitem__(self,key)->'Tensor':
         xp = cp if self.device == 'gpu' else np
         key=(key,) if not isinstance(key,tuple) else key
         key = tuple(list((i.to(self.device).data.astype(xp.int32) if isinstance(i,Tensor) else i  for i in key)))
         return Index.apply(self,key)
     def __hash__(self):return id(self)
+    def __len__(self):return self.shape[0]
     def __neg__(self)->'Tensor':return Neg.apply(self)
     def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
     def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
