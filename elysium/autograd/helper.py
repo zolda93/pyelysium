@@ -42,7 +42,8 @@ def pad2d(x, padding, stride=None, dilation=None, kernel_size=None, padding_mode
         "replicate": "edge",
         "circular": "wrap",
     }.get(padding_mode, 'zeros')
-    return xp.pad(x, pad_width,mode)
+    return (xp.pad(x, pad_width,mode),(ph0, ph1, pw0, pw1) )if padding=='same' else xp.pad(x,pad_width,mode)
+
 # cupy doesnt have a sliding_window_view function
 def sliding_window_view(x, window_shape, axis=None):
     xp = cp if  (cp is not None and x.__class__ is cp.ndarray) else np
@@ -58,29 +59,112 @@ def sliding_window_view(x, window_shape, axis=None):
     full_shape = tuple(out_shape[ax] if ax not in axis else out_shape[ax] for ax in range(x.ndim)) + tuple(window_shape)
     out_strides = tuple(x.strides[ax] for ax in range(x.ndim)) + tuple(x.strides[ax] for ax in axis)# Compute the strides for the output array
     return xp.lib.stride_tricks.as_strided(x, shape=full_shape, strides=out_strides)
-def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros'):
+
+def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros',is_backward_w=False):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-    c_out,c_in_by_group,kh,kw=w.shape
-    kernel_size=(kh,kw)
     if isinstance(stride,int):stride=(stride,stride)
     if isinstance(dilation,int):dilation=(dilation,dilation)
-    if padding:pad2d(x,padding,stride=stride,dilation=dilation,kernel_size=kernel_size,padding_mode)
-    n,c_in,h,w = x.shape
+    if isinstance(padding,int):padding=(padding,padding)
+    if is_backward_w:_,c_out,kh,kw=w.shape
+    else:c_out,c_in_by_groups,kh,kw=w.shape
+    kernel_size=(kh,kw)
+    if padding:
+        if padding=='same':x,padding=pad2d(x,padding,stride,dilation,kernel_size,padding_mode)
+        else:x=pad2d(x,padding,stride,dilation,kernel_size,padding_mode)
+    n,c_in,h,w=x.shape
     dh,dw=dilation
     sh,sw=stride
-    dilated_kh,dilated_kw=(kh - 1)*dh + 1,(kw -1 )*dw + 1
+    dilated_kh,dilated_kw=(kh-1)*dh + 1,(kw-1)*dw + 1
     assert c_in % groups == 0, f"Number of input channels ({c_in}) not divisible by groups ({groups})."
     assert c_out % groups == 0, f"Number of output channels ({c_out}) not divisible by groups ({groups})."
-    c_in_group,c_out_group = c_in//groups,c_out//groups
-    kernel_shape=(c_in_group, dilated_kh, dilated_kw)
-    w=w.reshape(1, groups, c_out_group, 1, 1, c_in_group * kh * kw)
+    c_in_group = c_in // groups
+    c_out_group = c_out // groups
+    kernel_shape = (c_in_group, dilated_kh, dilated_kw)
+    if is_backward_w:w=w.reshape(n, groups, c_out_group, 1, 1, kh * kw)
+    else:w=w.reshape(1, groups, c_out_group, 1, 1, c_in_group * kh * kw)
     windows = sliding_window_view(x.reshape(n,groups,c_in_group,h,w), kernel_shape, axis=(-3, -2, -1))[:, :, :, ::sh, ::sw, :, ::dh, ::dw]
     h_out, w_out = windows.shape[3:5]
-    windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
-    y = xp.einsum("abcdei,abcdei->abcde", windows, w)
-    y = y.reshape(n, c_out, h_out, w_out)
+    if is_backward_w:windows = windows.reshape(n, groups, h_out, w_out, c_in_group , kh * kw)
+    else:windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
+    if is_backward_w:
+        y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, weight).reshape(c_out,c_in//groups,h_out,w_out)
+        return y,x
+    else:
+        y = xp.einsum("abcdei,abcdei->abcde", windows, weight).reshape(n, c_out, h_out, w_out)    
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
-    return y,x
+    return y,x,padding
+
+def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output_padding=(0, 0),padding_mode='zeros',x=None,extra_padding=((0,0),(0,0))):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    if isinstance(stride,int):stride=(stride,stride)
+    if isinstance(dilation,int):dilation=(dilation,dilation)
+    x_dilated=dilate(x,stride)
+    w_t = xp.flip(w,axis=(-1,-2))
+    c_in,c_out_by_groups,wh,ww=w_t.shape
+    n,_,h,w=x.shape
+    dilated_kh = (wh - 1) * dilation[0] + 1
+    dilated_kw = (ww - 1) * dilation[1] + 1
+    x_padded = pad2d(x_dilated, ((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
+    xpadded = xpadded.reshape(n, groups, c_in // groups, input_padded.shape[-2], input_padded.shape[-1])
+    w_t = w_t.reshape(groups,c_in // groups,c_out_by_groups,wh,ww).transpose(0, 2, 1, 3, 4).reshape(1, groups, c_out_by_groups, 1, 1, (c_in // groups) * wh * ww)
+    kernel_shape = (c_in // groups, dilated_kh, dilated_kw)
+    windows = sliding_window_view(x_padded, kernel_shape, axis=(-3, -2, -1))[:, :, :, :, :, :, ::dilation[0], ::dilation[1]]
+    h_out, w_out = windows.shape[3:5]
+    windows = windows.reshape(n, groups, 1, h_out, w_out, (c_in // groups) * wh * ww)
+    y = xp.einsum("abcdei,abcdei->abcde", windows, weight_t).reshape(n, -1, h_out, w_out)
+    if x is not None:Hx,Wx=x.shape[-2:]
+    else:
+        hop, wop = output_padding if len(output_padding) == 2 else (output_padding[0], output_padding[0])
+        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (weight.shape[-2] - 1) + hop + 1
+        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (weight.shape[-1] - 1) + wop + 1
+    if padding_mode=='reflect':
+        left, right, top, bottom = convert_padding(padding)
+        h_in = y.shape[2] - top - bottom
+        w_in = y.shape[3] - left - right
+        y=xp.pad(y, ((0, 0), (0, 0), (0, Hx-h_in if Hx-h_in >0 else 0), (0, Wx-w_in if Wx - w_in >0 else 0)))
+        if top > 0 :y[...,top+1:2*top+1,:]         +=xp.flip(y[:, :, :top,:], axis=2)
+        if bottom>0:y[...,-2*bottom-1:-bottom-1,:] +=xp.flip(y[:, :, -bottom:,:], axis=2)
+        if left>0  :y[...,left+1:2*left+1]         +=xp.flip(y[:, :, :, :left], axis=3)
+        if right>0 :y[...,-2*right-1:-right-1]     +=xp.flip(y[:, :, :, -right:], axis=3)
+    elif padding_mode=='circular':
+        left, right, top, bottom = convert_padding(padding)
+        h_in = y.shape[2] - top - bottom
+        w_in = y.shape[3] - left - right
+        y=xp.pad(y, ((0, 0), (0, 0), (0, Hx-h_in if Hx-h_in >0 else 0), (0, Wx-w_in if Wx - w_in >0 else 0)))
+        if top > 0 and bottom > 0:
+            y[..., top:top+bottom, :] += y[:, :, -bottom:, :]
+            y[..., -bottom - top:-bottom, :] += y[:, :,:top, :]
+        elif top > 0 and bottom <= 0:  
+            y[..., -top:, :] += y[:, :, :top, :]
+        elif bottom > 0 and top <= 0:  
+            y[..., :bottom, :] += y[:, :, -bottom:, :]
+
+        if left > 0 and right > 0:
+            y[..., -right - left:-right] += y[:, :, :, :left]
+            y[..., left:left + right] += y[:, :, :, -right:]
+        elif left > 0 and right <= 0:  # Right padding is 0
+            y[..., -left:] += y[:, :, :, :left]
+        elif right > 0:  # Left padding is 0
+            y[..., :right] += y[:, :, :, -right:]
+    elif padding_mode=='replicate':
+        left, right, top, bottom = convert_padding(padding)
+        h_in = y.shape[2] - top - bottom
+        w_in = y.shape[3] - left - right
+        y=xp.pad(y, ((0, 0), (0, 0), (0, Hx-h_in if Hx-h_in >0 else 0), (0, Wx-w_in if Wx - w_in >0 else 0)))
+        if top>0:dout[...,top,:] += xp.sum(y[:, :, :top,:],axis=2)
+        if bottom>0:dout[...,-bottom-1,: ]+=xp.sum(y[:, :, -bottom:,:],axis=2)
+        if left>0:dout[...,left]+=xp.sum(y[:, :, :, :left],axis=3)
+        if right>0:y[...,-right-1]+=xp.sum(y[:, :, :, -right:],axis=3)
+    if padding=='same':
+        left, right, top, bottom = convert_padding(extra_padding)
+        return y[...,top:y.shape[-2] - bottom,left:y.shape[-1] - right]
+    y = y[..., padding[0]:Hx + padding[0], padding[1]:Wx + padding[1]]
+    # Adjust the output size with padding if necessary
+    hig, wig = y.shape[-2:]
+    y = xp.pad(y, ((0, 0), (0, 0), (0, Hx - hig), (0, Wx - wig)))
+    if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
+    return y
+
 
 
 
