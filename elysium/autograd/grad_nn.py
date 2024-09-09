@@ -21,7 +21,7 @@ class Convolution(Function):
             raise RuntimeError(f'Input type ({x.__class__.__name__}) and bias type ({bias.__class__.__name__}) should be the same')
         if x.ndim != 4:raise RuntimeError(f'Expected 3D (unbatched) or 4D (batched) input to conv2d, 'f'but got input of size: {x.shape}')
         if groups * w.shape[-3] != x.shape[-3]:
-            raise RuntimeError(f'Given groups={groups}, weight of size {xd1.shape}, '
+            raise RuntimeError(f'Given groups={groups}, weight of size {w.shape}, '
                                f'expected input{x.shape} to have {groups * w.shape[-3]} channels, '
                                f'but got {x.shape[-3]} channels instead')
         ctx.save_for_backward(x,w,bias)
