@@ -117,6 +117,7 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
         hop, wop = output_padding if len(output_padding) == 2 else (output_padding[0], output_padding[0])
         Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (weight.shape[-2] - 1) + hop + 1
         Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (weight.shape[-1] - 1) + wop + 1
+    # this part for calculating gradient of the input from a convolution forward operation
     if padding_mode=='reflect':
         left, right, top, bottom = convert_padding(padding)
         h_in = y.shape[2] - top - bottom
@@ -165,6 +166,15 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
     return y
 
-
-
-
+def conv2d_backward_w( x, grad, stride, padding, dilation, groups, weight,padding_mode='zeros'):
+    if isinstance(stride,int):stride=(stride,stride)
+    if isinstance(dilation,int):dilation=(dilation,dilation)
+    if isinstance(padding,int):padding=(padding,padding)
+    hw, ww = weight.shape[-2:]
+    if padding == 'same':x_padded ,padding= pad2d(x, padding,stride=stride,kernel_size=(hw,ww),dilation=dilation,padding_mode=padding_mode)
+    else:x_padded = pad2d(x,padding,padding_mode=padding_mode)
+    H_out, W_out = grad.shape[-2:]
+    H_valid = (H_out - 1) * stride[0] + 1 + dilation[0] * (hw - 1)
+    W_valid = (W_out - 1) * stride[1] + 1 + dilation[1] * (ww - 1)
+    return conv2d( x_padded[..., :H_valid, :W_valid], grad, stride=dilation, padding=(0, 0), dilation=stride,
+                   groups=groups,padding_mode=padding_mode,is_backward_w=True)
