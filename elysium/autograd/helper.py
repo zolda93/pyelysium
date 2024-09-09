@@ -166,15 +166,16 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
     return y
 
-def conv2d_backward_w( x, grad, stride, padding, dilation, groups, weight,padding_mode='zeros'):
+def conv2d_backward_w(x,grad, stride, padding, dilation, groups, weight,padding_mode='zeros',is_transpose=False):
     if isinstance(stride,int):stride=(stride,stride)
     if isinstance(dilation,int):dilation=(dilation,dilation)
     if isinstance(padding,int):padding=(padding,padding)
     hw, ww = weight.shape[-2:]
-    if padding == 'same':x_padded ,padding= pad2d(x, padding,stride=stride,kernel_size=(hw,ww),dilation=dilation,padding_mode=padding_mode)
-    else:x_padded = pad2d(x,padding,padding_mode=padding_mode)
+    if is_transpoe:
+        if padding == 'same':x ,padding= pad2d(x, padding,stride=stride,kernel_size=(hw,ww),dilation=dilation,padding_mode=padding_mode)
+        else:x = pad2d(x,padding,padding_mode=padding_mode)
     H_out, W_out = grad.shape[-2:]
     H_valid = (H_out - 1) * stride[0] + 1 + dilation[0] * (hw - 1)
     W_valid = (W_out - 1) * stride[1] + 1 + dilation[1] * (ww - 1)
-    return conv2d( x_padded[..., :H_valid, :W_valid], grad, stride=dilation, padding=(0, 0), dilation=stride,
+    return conv2d( x[..., :H_valid, :W_valid], grad, stride=dilation, padding=(0, 0), dilation=stride,
                    groups=groups,padding_mode=padding_mode,is_backward_w=True)
