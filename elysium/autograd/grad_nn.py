@@ -37,11 +37,11 @@ class Convolution(Function):
         stride,padding,dilation,groups,padding_mode=ctx.stride,ctx.padding,ctx.dilation,ctx.groups,ctx.padding_mode
         x_padded,extra_padding=ctx.x_padded,ctx.extra_padding
         if x.requires_grad:x_grad=conv_transpose2d(grad.data,w.data,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode,x=x.data,extra_padding=extra_padding)
-        if w.requires_grad:w_grad=conv2d_backward_w( input_padded,grad, stride, padding, dilation, groups, weight,padding_mode=padding_mode)[0]
+        if w.requires_grad:w_grad=conv2d_backward_w(x_padded,grad.data, stride, padding, dilation, groups, weight,padding_mode=padding_mode)[0]
         if bias is not None and bias.requires_grad:b_grad=grad.data.sum((0,2,3))
         x_grad = e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x.requires_grad else None
         w_grad = e.Tensor(w_grad,device=w.device,dtype=w.dtype) if w.requires_grad else None
-        b_grad = e.Tensor(b_grad,device=b.device,dtype=b.dtype) if bias is not None and bias.requires_grad else None
+        b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
         return (x_grad,w_grad,b_grad)
 
 
