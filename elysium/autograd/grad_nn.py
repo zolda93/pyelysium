@@ -11,7 +11,7 @@ class Convolution(Function):
             w:'Tensor',
             bias:Union['Tensor',None]=None,
             stride:Optional[Union[Tuple[int,...],int]]=1,
-            padding:Optioanl[Union[Tuple[int,...],int,str]]0,
+            padding:Optional[Union[Tuple[int,...],int,str]]0,
             dilation:Optional[Union[Tuple[int,...],int]]=1,
             groups:Optional[int]=1,
             padding_mode:Optional[str]='zeros')->'Tensor':

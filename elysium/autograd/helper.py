@@ -87,10 +87,10 @@ def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='ze
     if is_backward_w:windows = windows.reshape(n, groups, h_out, w_out, c_in_group , kh * kw)
     else:windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
     if is_backward_w:
-        y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, weight).reshape(c_out,c_in//groups,h_out,w_out)
+        y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, w).reshape(c_out,c_in//groups,h_out,w_out)
         return y,x
     else:
-        y = xp.einsum("abcdei,abcdei->abcde", windows, weight).reshape(n, c_out, h_out, w_out)    
+        y = xp.einsum("abcdei,abcdei->abcde", windows, w).reshape(n, c_out, h_out, w_out)    
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
     return y,x,padding
 
@@ -98,6 +98,7 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
     if isinstance(stride,int):stride=(stride,stride)
     if isinstance(dilation,int):dilation=(dilation,dilation)
+    if isinstance(padding,int):padding=(padding,padding)
     x_dilated=dilate(x,stride)
     w_t = xp.flip(w,axis=(-1,-2))
     c_in,c_out_by_groups,wh,ww=w_t.shape
@@ -105,18 +106,18 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     dilated_kh = (wh - 1) * dilation[0] + 1
     dilated_kw = (ww - 1) * dilation[1] + 1
     x_padded = pad2d(x_dilated, ((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
-    xpadded = xpadded.reshape(n, groups, c_in // groups, input_padded.shape[-2], input_padded.shape[-1])
+    x_padded = x_padded.reshape(n, groups, c_in // groups, x_padded.shape[-2], x_padded.shape[-1])
     w_t = w_t.reshape(groups,c_in // groups,c_out_by_groups,wh,ww).transpose(0, 2, 1, 3, 4).reshape(1, groups, c_out_by_groups, 1, 1, (c_in // groups) * wh * ww)
     kernel_shape = (c_in // groups, dilated_kh, dilated_kw)
     windows = sliding_window_view(x_padded, kernel_shape, axis=(-3, -2, -1))[:, :, :, :, :, :, ::dilation[0], ::dilation[1]]
     h_out, w_out = windows.shape[3:5]
     windows = windows.reshape(n, groups, 1, h_out, w_out, (c_in // groups) * wh * ww)
-    y = xp.einsum("abcdei,abcdei->abcde", windows, weight_t).reshape(n, -1, h_out, w_out)
+    y = xp.einsum("abcdei,abcdei->abcde", windows, w_t).reshape(n, -1, h_out, w_out)
     if x is not None:Hx,Wx=x.shape[-2:]
     else:
         hop, wop = output_padding if len(output_padding) == 2 else (output_padding[0], output_padding[0])
-        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (weight.shape[-2] - 1) + hop + 1
-        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (weight.shape[-1] - 1) + wop + 1
+        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (w.shape[-2] - 1) + hop + 1
+        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (w.shape[-1] - 1) + wop + 1
     # this part for calculating gradient of the input from a convolution forward operation
     if padding_mode=='reflect':
         left, right, top, bottom = convert_padding(padding)
