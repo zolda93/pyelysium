@@ -68,7 +68,7 @@ class TransposedConvolution(Function):
                                f'but got {x.shape[-3]} channels instead')
         ctx.save_for_backward(x,w,bias)
         bias = bias.data if bias is not None else None
-        if padding_mode != 'zeros':raie ValueError('Only "zeros" padding mode is supported for ConvTranspose2d')
+        if padding_mode != 'zeros':raise ValueError('Only "zeros" padding mode is supported for ConvTranspose2d')
         output= conv_transpose2d(x.data,w.data,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,output_padding=output_padding)
         ctx.stride,ctx.padding,ctx.dilation,ctx.groups=stride,padding,dilation,groups
         requires_grad=x.requires_grad|w.requires_grad
