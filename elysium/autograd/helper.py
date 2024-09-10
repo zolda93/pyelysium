@@ -180,3 +180,76 @@ def conv2d_backward_w(x,grad, stride, padding, dilation, groups, weight,padding_
     W_valid = (W_out - 1) * stride[1] + 1 + dilation[1] * (ww - 1)
     return conv2d( x[..., :H_valid, :W_valid], grad, stride=dilation, padding=(0, 0), dilation=stride,
                    groups=groups,padding_mode=padding_mode,is_backward_w=True)
+# pooling helper
+def sliding_window_view_pool(x,kernel_size,stride,dilation,padding=(0,0),ceil_mode=False,val=0):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    import math
+    aug = False
+    c,h,w = x.shape[-3:]
+    wh, ww = kernel_size
+    sh, sw = stride
+    ph,pw = padding
+    dh,dw = dilation
+    fn = math.ceil if ceil_mode else math.floor
+    h_out = fn((h + 2 * ph - dh * (wh - 1) - 1) / sh + 1)
+    w_out = fn((w + 2 * pw - dw * (ww - 1) - 1) / sw + 1)
+    if ceil_mode:
+        he = (h_out - 1) * sh - (h + 2 * ph - dh * (wh - 1) - 1)
+        we = (w_out - 1) * sw - (w + 2 * pw - dw * (ww - 1) - 1)
+        if he + ph >= (wh - 1)*dh + 1:
+            aug = True
+            h_out -= 1
+        if we + pw >= (ww - 1)*dw + 1:
+            aug = True
+            w_out -= 1
+    else:
+        he,we = 0,0
+    pad_width = [[0,0] for _ in range(x.ndim)]
+    if aug:
+        pad_width[-2] = [ph, 0]
+        pad_width[-1] = [pw, 0]
+    else:
+        pad_width[-2] = [ph, ph + he]
+        pad_width[-1] = [pw, pw + we]
+    
+    padded = xp.pad(x, pad_width, constant_values=val)
+    shape = (*x.shape[:-3], h_out, w_out, padded.shape[-3], wh, ww)
+    strides = (*padded.strides[:-3],  # batch
+               padded.strides[-2] * stride[0],  # H dimension
+               padded.strides[-1] * stride[1],  # W dimension
+               padded.strides[-3],  # input channel
+               padded.strides[-2] * dilation[0],  # kernel height
+               padded.strides[-1] * dilation[1],  # kernel width
+              )
+
+    windows = xp.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
+    return windows, padded
+def maxpool2d(x,kernel_size,stride,dilation,padding,ceil_mode):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    low_dim = False
+    if x.ndim == 3:
+        low_dim = True
+        x = x[None]
+    windows = sliding_window_view_pool(x,kernel_size,stride,dilation,padding,ceil_mode,val=np.inf)[0]
+    batch_size,h,w,channels,kh,kw = windows.shape
+    max_pooled = xp.max(windows, axis=(4, 5)).transpose(0,3,1,2)
+    max_positions = xp.argmax(windows.reshape(batch_size, channels, h,w, -1), axis=-1)
+    max_positions = xp.unravel_index(max_positions, (kernel_size[0], kernel_size[1]))
+    if low_dim:max_pooled = max_pooled[0]
+    return max_pooled, max_positions
+def maxpool2d_backward(x, grad, pos, kernel_size, stride, padding, dilation, ceil_mode):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    low_dim_flag = False
+    if x.ndim == 3:
+        low_dim_flag = True
+        x = x[None]
+    x_grad = xp.zeros_like(x)
+    idx2, idx1_m = pos
+    expanded, padded = sliding_window_view_pool(x_grad, kernel_size, stride, dilation, padding, ceil_mode, val=np.NINF)
+    ax0, ax1, ax2, ax3 = xp.indices((expanded.shape[:-2]))
+    expanded[ax0, ax1, ax2, ax3, idx2, idx1_m] = xp.moveaxis(grad, -3, -1)
+    hp, wp = padding
+    h, w = x_grad.shape[-2:]
+    x_grad = padded[..., hp:(hp + h), wp:(wp + w)]
+    if low_dim_flag:x_grad = x_grad[0]
+    return x_grad

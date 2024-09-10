@@ -85,15 +85,24 @@ class TransposedConvolution(Function):
         b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
         return (x_grad,w_grad,b_grad)
 
-
-
-        
-
-
-
-
-
-
-
-
+class MaxPool2DWithIndices(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',
+            kernel_size:Union[int, Tuple[int, int]],
+            stride:Union[int, Tuple[int, int]]=None,
+            padding:Union[int, Tuple[int, int]]=0,
+            dilation:Union[int, Tuple[int, int]]=1,
+            return_indices:Optional[bool]=True,
+            ceil_mode:Optional[bool]=False)->'Tensor':
+        ctx.save_for_backward(x)
+        ctx.kernel_size,ctx.stride,ctx.padding,ctx.dilation,ctx.return_indices,ctx.ceil_mode=kernel_size,stride,padding,dilation,return_indices,ceil_mode
+        out,pos=maxpool2d(x.data,kernel_size,stride,dilation,padding,ceil_mode)
+        ctx.pos=pos
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        kernel_size,stride,padding,dilation,ceil_mode,pos=ctx.kernel_size,ctx.stride,ctx.padding,ctx.dilation,ctx.ceil_mode,ctx.pos
+        x_grad = maxpool2d_backward(x.data,grad.data,pos,kernel_size,stride, padding,dilation,ceil_mode) if x.requires_grad else None
+        return (e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x_grad is not None else None,)
 
