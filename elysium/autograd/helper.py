@@ -51,7 +51,8 @@ def sliding_window_view(x, window_shape, axis=None):
     if axis is None:axis = tuple(range(x.ndim)) # Apply sliding window to all axes
     if isinstance(axis,int):axis=(axis,)
     if len(window_shape)!= len(axis):raise ValueError("window_shape must have the same length as axis")
-    axis = xp.core.numeric.normalize_axis_tuple(axis,x.ndim)# Convert negative axes to positive indices
+    #axis = xp.core.numeric.normalize_axis_tuple(axis,x.ndim)# Convert negative axes to positive indices cupy doesnt have core!!
+    axis = tuple(ax if ax >= 0 else x.ndim + ax for ax in axis)
     # Compute the shape of the output array
     out_shape = list(x.shape)
     for ax, win in zip(axis, window_shape):out_shape[ax] = x.shape[ax] - win + 1
@@ -94,13 +95,13 @@ def conv2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mod
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
     return y,x,padding
 
-def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output_padding=(0, 0),padding_mode='zeros',input=None,extra_padding=((0,0),(0,0))):
+def conv_transpose2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,output_padding=(0, 0),padding_mode='zeros',input=None,extra_padding=((0,0),(0,0))):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
     if isinstance(stride,int):stride=(stride,stride)
     if isinstance(dilation,int):dilation=(dilation,dilation)
     if isinstance(padding,int):padding=(padding,padding)
     x_dilated=dilate(x,stride)
-    w_t = xp.flip(w,axis=(-1,-2))
+    w_t = xp.flip(weight,axis=(-1,-2))
     c_in,c_out_by_groups,wh,ww=w_t.shape
     n,_,h,w=x.shape
     dilated_kh = (wh - 1) * dilation[0] + 1
@@ -113,11 +114,11 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     h_out, w_out = windows.shape[3:5]
     windows = windows.reshape(n, groups, 1, h_out, w_out, (c_in // groups) * wh * ww)
     y = xp.einsum("abcdei,abcdei->abcde", windows, w_t).reshape(n, -1, h_out, w_out)
-    if x is not None:Hx,Wx=input.shape[-2:]
+    if input is not None:Hx,Wx=input.shape[-2:]
     else:
         hop, wop = output_padding if len(output_padding) == 2 else (output_padding[0], output_padding[0])
-        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (w.shape[-2] - 1) + hop + 1
-        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (w.shape[-1] - 1) + wop + 1
+        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (weight.shape[-2] - 1) + hop + 1
+        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (weight.shape[-1] - 1) + wop + 1
     # this part for calculating gradient of the input from a convolution forward operation
     if padding_mode=='reflect':
         left, right, top, bottom = convert_padding(padding)
@@ -163,7 +164,7 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,output
     # Adjust the output size with padding if necessary
     hig, wig = y.shape[-2:]
     y = xp.pad(y, ((0, 0), (0, 0), (0, Hx - hig), (0, Wx - wig)))
-    if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
+    if bias is not None:y = y + bias.reshape(1, groups * c_out_by_groups, 1, 1)
     return y
 
 def conv2d_backward_w(x,grad, stride, padding, dilation, groups, weight,padding_mode='zeros',is_transpose=False):
