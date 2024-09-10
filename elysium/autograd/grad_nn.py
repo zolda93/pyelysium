@@ -11,7 +11,7 @@ class Convolution(Function):
             w:'Tensor',
             bias:Union['Tensor',None]=None,
             stride:Optional[Union[Tuple[int,...],int]]=1,
-            padding:Optional[Union[Tuple[int,...],int,str]]0,
+            padding:Optional[Union[Tuple[int,...],int,str]]=0,
             dilation:Optional[Union[Tuple[int,...],int]]=1,
             groups:Optional[int]=1,
             padding_mode:Optional[str]='zeros')->'Tensor':
@@ -36,7 +36,7 @@ class Convolution(Function):
         x,w,bias=ctx.get_saved_tensors()
         stride,padding,dilation,groups,padding_mode=ctx.stride,ctx.padding,ctx.dilation,ctx.groups,ctx.padding_mode
         x_padded,extra_padding=ctx.x_padded,ctx.extra_padding
-        if x.requires_grad:x_grad=conv_transpose2d(grad.data,w.data,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode,x=x.data,extra_padding=extra_padding)
+        if x.requires_grad:x_grad=conv_transpose2d(grad.data,w.data,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode,input=x.data,extra_padding=extra_padding)
         if w.requires_grad:w_grad=conv2d_backward_w(x_padded,grad.data, stride, padding, dilation, groups, w.data,padding_mode=padding_mode)[0]
         if bias is not None and bias.requires_grad:b_grad=grad.data.sum((0,2,3))
         x_grad = e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x.requires_grad else None
@@ -46,8 +46,8 @@ class Convolution(Function):
 class TransposedConvolution(Function):
     @staticmethod
     def forward(ctx:Context,
-            x:'Tensor'
-            w:'Tensor'
+            x:'Tensor',
+            w:'Tensor',
             bias:Union['Tensor',None]=None,
             stride:Optional[Union[Tuple[int,...],int]]=1,
             padding:Optional[Union[Tuple[int,...],int]]=0,
@@ -75,7 +75,16 @@ class TransposedConvolution(Function):
         return e.Tensor(output,requires_grad=requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        pass
+        x,w,bias=ctx.get_saved_tensors()
+        stride,padding,dilation,groups=ctx.stride,ctx.padding,ctx.dilation,ctx.groups
+        w_grad,grad_padded = conv2d_backward_w(grad.data,x.data ,stride,padding,dilation,groups,w.data,is_transpose=True)
+        if x.requires_grad:x_grad=conv2d(grad_padded,w.data,stride=stride,padding=(0,0),dilation=dilation,groups=groups)[0]
+        if bias is not None and bias.requires_grad:b_grad=grad.data.sum((0,2,3))
+        x_grad=e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x.requires_grad else None
+        w_grad = e.Tensor(w_grad,device=w.device,dtype=w.dtype) if w.requires_grad else None
+        b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
+        return (x_grad,w_grad,b_grad)
+
 
 
         
