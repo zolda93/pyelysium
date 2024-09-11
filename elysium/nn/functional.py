@@ -23,4 +23,10 @@ def avg_pool2d(x,kernel_size,stride=None,padding=0,ceil_mode=False,count_include
     kernel_size,padding=pair(kernel_size),pair(padding)
     stride = kernel_size if stride is None else pair(stride)
     return AvgPool2d.apply(x,kernel_size,stride=stride,padding=padding,ceil_mode=ceil_mode,count_include_pad=count_include_pad,divisor_override=divisor_override)
-
+def linear(x, weight, bias=None):
+    shape=tuple(i for i in range(len((1,) * (x.ndim - weight.ndim))))
+    if bias is not None:
+        output = x@weight.transpose(1,0).unsqueeze(shape) + bias
+    else:
+        output = x@(weight.transpose(1,0).unsqueeze(shape))
+    return output
