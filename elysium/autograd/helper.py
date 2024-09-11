@@ -253,3 +253,28 @@ def maxpool2d_backward(x, grad, pos, kernel_size, stride, padding, dilation, cei
     x_grad = padded[..., hp:(hp + h), wp:(wp + w)]
     if low_dim_flag:x_grad = x_grad[0]
     return x_grad
+def avgpool2d_forward(x, kernel_size, stride=None, padding=(0, 0), ceil_mode=False, count_include_pad=True, divisor_override=None):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    windows =sliding_window_view_pool(x,kernel_size,stride,(1,1),padding,ceil_mode,val=0)[0]
+    batch_size,h,w,channels,kh,kw = windows.shape
+    if count_include_pad:
+        pool_area = kernel_size[0] * kernel_size[1]
+    else:
+        pool_area = xp.sum(windows != 0, axis=(4, 5), keepdims=False)
+    if divisor_override:
+        divisor = divisor_override
+    else:
+        divisor = pool_area
+    out = xp.sum(windows, axis=(4, 5)) / divisor
+    return out.transpose(0,3,1,2),divisor
+def avgpool2d_backward(x,grad,divisor,kernel_size,stride,padding,ceil_mode=False):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    x_grad = np.zeros_like(x)
+    windows ,padded = sliding_window_view_pool(x_grad,kernel_size,stride,(1,1),padding,ceil_mode,val=0)
+    grad_t = grad.transpose(0, 2, 3, 1)
+    grad_t /= divisor # Shape: (batch_size, out_h, out_w, channels)
+    windows += grad_t[...,None,None]
+    hp, wp = padding
+    h, w = x_grad.shape[-2:]
+    x_grad = padded[..., hp:(hp + h), wp:(wp + w)]
+    return x_grad

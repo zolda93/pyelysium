@@ -45,16 +45,7 @@ class Convolution(Function):
         return (x_grad,w_grad,b_grad)
 class TransposedConvolution(Function):
     @staticmethod
-    def forward(ctx:Context,
-            x:'Tensor',
-            w:'Tensor',
-            bias:Union['Tensor',None]=None,
-            stride:Optional[Union[Tuple[int,...],int]]=1,
-            padding:Optional[Union[Tuple[int,...],int]]=0,
-            dilation:Optional[Union[Tuple[int,...],int]]=1,
-            output_padding:Optional[Union[Tuple[int,...],int]]=0,
-            groups:Optional[int]=1,
-            padding_mode:Optional[str]='zeros')->'Tensor':
+    def forward(ctx:Context,x:'Tensor',w:'Tensor',bias:Union['Tensor',None]=None,stride:Optional[Union[Tuple[int,...],int]]=1,padding:Optional[Union[Tuple[int,...],int]]=0,dilation:Optional[Union[Tuple[int,...],int]]=1,output_padding:Optional[Union[Tuple[int,...],int]]=0,groups:Optional[int]=1,padding_mode:Optional[str]='zeros')->'Tensor':
         if x.__class__ is not w.__class__:
             raise RuntimeError(f'Input type ({x.__class__.__name__}) and weight type ({w.__class__.__name__}) should be the same')
         if bias is not None and x.__class__ is not bias.__class__:
@@ -87,13 +78,8 @@ class TransposedConvolution(Function):
 
 class MaxPool2DWithIndices(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',
-            kernel_size:Union[int, Tuple[int, int]],
-            stride:Union[int, Tuple[int, int]]=None,
-            padding:Union[int, Tuple[int, int]]=0,
-            dilation:Union[int, Tuple[int, int]]=1,
-            return_indices:Optional[bool]=True,
-            ceil_mode:Optional[bool]=False)->'Tensor':
+    def forward(ctx:Context,x:'Tensor',kernel_size:Union[int, Tuple[int, int]],stride:Union[int, Tuple[int, int]]=None,padding:Union[int, Tuple[int, int]]=0,dilation:Union[int, Tuple[int, int]]=1,
+            return_indices:Optional[bool]=True,ceil_mode:Optional[bool]=False)->'Tensor':
         ctx.save_for_backward(x)
         ctx.kernel_size,ctx.stride,ctx.padding,ctx.dilation,ctx.return_indices,ctx.ceil_mode=kernel_size,stride,padding,dilation,return_indices,ceil_mode
         out,pos=maxpool2d(x.data,kernel_size,stride,dilation,padding,ceil_mode)
@@ -105,4 +91,19 @@ class MaxPool2DWithIndices(Function):
         kernel_size,stride,padding,dilation,ceil_mode,pos=ctx.kernel_size,ctx.stride,ctx.padding,ctx.dilation,ctx.ceil_mode,ctx.pos
         x_grad = maxpool2d_backward(x.data,grad.data,pos,kernel_size,stride, padding,dilation,ceil_mode) if x.requires_grad else None
         return (e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x_grad is not None else None,)
+class AvgPool2d(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',kernel_size,stride=None,padding=0,ceil_mode=False,count_include_pad=True,divisor_override=None)->'Tensor':
+        ctx.save_for_backward(x)
+        ctx.kernel_size,ctx.stride,ctx.padding,ctx.ceil_mode=kernel_size,stride,padding,ceil_mode
+        out,divisor= avgpool2d_forward(x.data,kernel_size,stride=stride,padding=padding,ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+        ctx.divisor = divisor
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        kernel_size,stride,padding,ceil_mode,divisor=ctx.kernel_size,ctx.stride,ctx.padding,ctx.ceil_mode,ctx.divisor
+        x_grad = avgpool2d_backward(x.data,grad.data,divisor,kernel_size,stride,padding,ceil_mode=ceil_mode) if x.requires_grad else None
+        return (e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x_grad is not None else None,)
+
 
