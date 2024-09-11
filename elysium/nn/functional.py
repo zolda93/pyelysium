@@ -30,3 +30,8 @@ def linear(x, weight, bias=None):
     else:
         output = x@(weight.transpose(1,0).unsqueeze(shape))
     return output
+def pad(x,padding,mode='constant',value=None)->'Tensor':
+    if mode == 'constant':return ConstantPad2d.apply(x,padding,value)
+    if mode == 'reflect' :return ReflectionPad2d.apply(x,padding)
+    if mode == 'circular':return CircularPad2d.apply(x,padding)
+    if mode == 'replicate':return ReplicationPad2d.apply(x,padding)

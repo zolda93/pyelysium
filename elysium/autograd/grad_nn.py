@@ -6,15 +6,7 @@ import elysium as e
 
 class Convolution(Function):
     @staticmethod
-    def forward(ctx:Context,
-            x:'Tensor',
-            w:'Tensor',
-            bias:Union['Tensor',None]=None,
-            stride:Optional[Union[Tuple[int,...],int]]=1,
-            padding:Optional[Union[Tuple[int,...],int,str]]=0,
-            dilation:Optional[Union[Tuple[int,...],int]]=1,
-            groups:Optional[int]=1,
-            padding_mode:Optional[str]='zeros')->'Tensor':
+    def forward(ctx:Context,x:'Tensor',w:'Tensor',bias:Union['Tensor',None]=None,stride:Optional[Union[Tuple[int,...],int]]=1,padding:Optional[Union[Tuple[int,...],int,str]]=0,dilation:Optional[Union[Tuple[int,...],int]]=1,groups:Optional[int]=1,padding_mode:Optional[str]='zeros')->'Tensor':
         if x.__class__ is not w.__class__:
             raise RuntimeError(f'Input type ({x.__class__.__name__}) and weight type ({w.__class__.__name__}) should be the same')
         if bias is not None and x.__class__ is not bias.__class__:
@@ -75,7 +67,6 @@ class TransposedConvolution(Function):
         w_grad = e.Tensor(w_grad,device=w.device,dtype=w.dtype) if w.requires_grad else None
         b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
         return (x_grad,w_grad,b_grad)
-
 class MaxPool2DWithIndices(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',kernel_size:Union[int, Tuple[int, int]],stride:Union[int, Tuple[int, int]]=None,padding:Union[int, Tuple[int, int]]=0,dilation:Union[int, Tuple[int, int]]=1,
@@ -105,5 +96,114 @@ class AvgPool2d(Function):
         kernel_size,stride,padding,ceil_mode,divisor=ctx.kernel_size,ctx.stride,ctx.padding,ctx.ceil_mode,ctx.divisor
         x_grad = avgpool2d_backward(x.data,grad.data,divisor,kernel_size,stride,padding,ceil_mode=ceil_mode) if x.requires_grad else None
         return (e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x_grad is not None else None,)
+class ConstantPad2d(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',padding,val)->'Tensor':
+        xp = cp if x.device=='gpu' else np
+        ctx.save_for_backward(x)
+        let,right,top,bottom = convert_padding(padding)
+        ctx.padding=padding
+        if x.ndim == 3:
+            out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='constant',constant_values=val)[0]
+        else:
+            out=xp.pad(x.data, ((0, 0), (0, 0), (top, bottom), (left, right)), mode='constant',constant_values=val)
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        left,right,top,bottom=convert_padding(ctx.padding)
+        left, right, top, bottom = self.padding
+        h_in = grad.shape[-2] - top - bottom
+        w_in = grad.shape[-1] - left - right
+        return  (e.Tensor(grad.data[..., top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
+class ReflectionPad2d(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+        xp = cp if x.device=='gpu' else np
+        ctx.save_for_backward(x)
+        ctx.padding=padding
+        left,right,top,bottom=convert_padding(padding)
+        if x.ndim == 3:
+            out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='reflect')[0]
+        else:
+            out=xp.pad(x.data, ((0, 0), (0, 0), (top, bottom), (left, right)), mode='reflect')
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+        left,right,top,bottom=convert_padding(ctx.padding)
+        h_in = grad.shape[-2] - top - bottom
+        w_in = grad.shape[-1] - left - right
+        grad=grad.data
+        if top > 0:grad[...,top+1:2*top+1,:] += xp.flip(grad[..., :top,:], axis=2)
+        if bottom>0:grad[...,-2*bottom-1:-bottom-1,: ]+=xp.flip(grad[..., -bottom:,:], axis=2)
+        if left>0:grad[...,left+1:2*left+1]+=xp.flip(grad[...,:left], axis=3)
+        if right>0:grad[...,-2*right-1:-right-1]+=xp.flip(grad[..., -right:], axis=3)
+        return (e.Tensor(grad[...,top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
+class CircularPad2d(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+        xp = cp if x.device=='gpu' else np
+        ctx.save_for_backward(x)
+        ctx.padding=padding
+        left,right,top,bottom=convert_padding(padding)
+        if x.ndim == 3:
+            out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='wrap')[0]
+        else:
+            out=xp.pad(x.data, ((0, 0), (0, 0), (top, bottom), (left, right)), mode='wrap')
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+        left,right,top,bottom=convert_padding(ctx.padding)
+        h_in = grad.shape[-2] - top - bottom
+        w_in = grad.shape[-1] - left - right
+        grad=grad.data
+        if top > 0 and bottom > 0:
+            grad[..., top:top+bottom, :] += grad[..., -bottom:, :]
+            grad[..., -bottom - top:-bottom, :] += grad[...,:top, :]
+        elif top > 0 and bottom <= 0:  # Bottom padding is 0
+            grad[..., -top:, :] += grad[..., :top, :]
+        elif bottom > 0 and top <= 0:  # Top padding is 0
+            grad[..., :bottom, :] += grad[..., -bottom:, :]
+        if left > 0 and right > 0:
+            grad[..., -right - left:-right] += grad[..., :left]
+            grad[..., left:left + right] += grad[..., -right:]
+        elif left > 0 and right <= 0:  # Right padding is 0
+            grad[..., -left:] += grad[..., :left]
+        elif right > 0:  # Left padding is 0
+            grad[..., :right] += grad[..., -right:]
+        return (e.Tensor(grad[:, :, top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
+class ReplicationPad2d(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+        xp = cp if x.device=='gpu' else np
+        ctx.save_for_backward(x)
+        ctx.padding=padding
+        left,right,top,bottom=convert_padding(padding)
+        if x.ndim == 3:
+            out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='edge')[0]
+        else:
+            out=xp.pad(x.data, ((0, 0), (0, 0), (top, bottom), (left, right)), mode='edge')
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+        left,right,top,bottom=convert_padding(ctx.padding)
+        h_in = grad.shape[-2] - top - bottom
+        w_in = grad.shape[-1] - left - right
+        grad=grad.data
+        if top > 0:grad[...,top,:] += xp.sum(grad[..., :top,:],axis=2)
+        if bottom >0:grad[...,-bottom-1,: ]+=xp.sum(grad[..., -bottom:,:],axis=2)
+        if left>0:grad[...,left]+=xp.sum(grad[..., :left],axis=3)
+        if right>0:grad[...,-right-1]+=xp.sum(grad[..., -right:],axis=3)
+        return (e.Tensor(grad[:, :, top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
+        
+
+
+
 
 
