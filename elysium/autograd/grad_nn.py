@@ -259,9 +259,22 @@ class Sigmoid(Function):
         return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        grad_x = grad.data * out*(1-out)
+        grad_x = grad.data * ctx.out*(1-ctx.out)
         return (e.Tensor(grad_x,device=ctx.device,dtype=grad_x.dtype),)
-
+class LogSigmoid(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor')->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if x.device=='gpu' else np
+        out = x.data * (x.data < 0) -xp.log1p(xp.exp(-xp.abs(x.data)))
+        ctx.out=out
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        xp = cp if x.device=='gpu' else np
+        grad_x = grad.data * xp.exp(-x.data + ctx.out)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
 
 
 
