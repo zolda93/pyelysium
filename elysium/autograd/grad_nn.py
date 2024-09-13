@@ -255,7 +255,7 @@ class Sigmoid(Function):
     def forward(ctx:Context,x:'Tensor')->'Tensor':
         xp = cp if x.device == 'gpu' else np
         out = xp.divide(1,xp.add(1,xp.exp(-x.data),dtype=x.dtype),dtype=x.dtype)
-        ctx.out ctx.device= out,x.device
+        ctx.out,ctx.device= out,x.device
         return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
