@@ -202,6 +202,45 @@ class ReplicationPad2d(Function):
         if right>0:grad[...,-right-1]+=xp.sum(grad[..., -right:],axis=3)
         return (e.Tensor(grad[:, :, top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
         
+class Embedding(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',weight:'Tensor',padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False, sparse=False)->'Tensor':
+        ctx.save_for_backward(x,weight)
+        xp = cp if weight.device=='gpu' else np
+        x.data = x.data.astype(xp.int32)
+        ctx.padding_idx,ctx.max_norm,ctx.norm_type,ctx.scale_grad_by_freq,ctx.sparse=padding_idx,max_norm,norm_type,scale_grad_by_freq,sparse
+        embeddings = weight.data[x.data]
+        if max_norm is not None:
+            norms = xp.linalg.norm(embeddings, ord=norm_type, axis=-1, keepdims=True)
+            mask = norms > max_norm
+            embeddings = xp.where(mask, embeddings * (max_norm / norms), embeddings)
+        return e.Tensor(embeddings,requires_grad=weight.requires_grad,device=weight.device,dtype=weight.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,weight=ctx.get_saved_tensors()
+        xp = cp if weight.device=='gpu' else np
+        grad_w = xp.zeros_like(weight.data)
+        if xp is cp:
+            import cupyx
+            add_at = cupyx.scatter_add
+        else:
+            add_at = np.add.at
+        if ctx.sparse:
+            add_at(grad_w,x.data,grad.data)
+            if ctx.padding_idx is not None:grad_w[padding_idx]=0
+            return (None,e.Tensor(grad_w,device=weight.device,dtype=weight.dtype) if weight.requires_grad else None)
+        else:
+            grad = grad.data
+            if ctx.scale_grad_by_freq:
+                freqs = xp.bincount(x.data, minlength=weight.shape[0]).astype(xp.float32)
+                freqs = freqs[x.data][:, None]
+                grad = grad / freqs
+            add_at(grad_w,x.data,grad)
+            if ctx.padding_idx is not None:grad_w[padding_idx]=0
+            return (None,e.Tensor(grad_w,device=weight.device,dtype=weight.dtype) if weight.requires_grad else None)
+
+            
+
 
 
 

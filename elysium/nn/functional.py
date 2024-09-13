@@ -35,3 +35,5 @@ def pad(x,padding,mode='constant',value=None)->'Tensor':
     if mode == 'reflect' :return ReflectionPad2d.apply(x,padding)
     if mode == 'circular':return CircularPad2d.apply(x,padding)
     if mode == 'replicate':return ReplicationPad2d.apply(x,padding)
+def embedding(x, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False, sparse=False):
+    return Embedding.apply(x,weight,padding_idx=padding_idx,max_norm=max_norm,norm_type=norm_type,scale_grad_by_freq=scale_grad_by_freq,sparse=sparse)
