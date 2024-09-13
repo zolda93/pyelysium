@@ -250,6 +250,19 @@ class ReLU(Function):
         x=ctx.get_saved_tensors()[0]
         return (e.Tensor(grad.data * (x.data > 0),device=x.device,dtype=x.dtype) if a.requires_grad else None,)
 
+class Sigmoid(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor')->'Tensor':
+        xp = cp if x.device == 'gpu' else np
+        out = xp.divide(1,xp.add(1,xp.exp(-x.data),dtype=x.dtype),dtype=x.dtype)
+        ctx.out ctx.device= out,x.device
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        grad_x = grad.data * out*(1-out)
+        return (e.Tensor(grad_x,device=ctx.device,dtype=grad_x.dtype),)
+
+
 
 
 
