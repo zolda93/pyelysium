@@ -49,6 +49,8 @@ def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,m
             running_var  = (1 - momentum) * running_var + x.var((0,2,3),correction=1) * momentum 
         out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
     else:
+        if running_mean is None and running_var is None:
+            raise RuntimeError('running_mean end running_var must be defined in evaluation mode')
         out = (x - running_mean[None,:,None,None]) / (running_var[None,:,None,None] + eps).sqrt()
     if weight is not None:
         out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
