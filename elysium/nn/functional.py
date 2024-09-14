@@ -56,7 +56,7 @@ def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,m
             mean = x.mean(axis=(0,2,3))
         out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
     if weight is not None:
-        out = weight[None,:,None,None] * out + (bias.reshape((1,-1,1,1)) if bias is not None else 0)
+        out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
     return out
 def layer_norm(x,normalized_shape,weight=None,bias=None,eps=1e-05)->'Tensor':
     mean = x.mean(axis=tuple(range(-len(normalized_shape), 0)), keepdim=True)
@@ -76,7 +76,26 @@ def group_norm(x, num_groups, weight=None, bias=None, eps=1e-05)->'Tensor':
     if weight is not None:
         out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
     return out
+def instance_norm(x,running_mean=None,running_var=None, weight=None, bias=None, use_input_stats=True, momentum=0.1, eps=1e-05):
+    if use_input_stats:
+        mean = x.mean((2,3),keepdim=True)
+        var = x.var((2,3),correction=0,keepdim=True)
+        if running_mean is not None and running_var is not None:
+            running_mean = (1 - momentum) * running_mean + x.mean((0,2,3)) * momentum
+            running_var  = (1 - momentum) * running_var + x.var(dim=(0,2,3),correction=1) * momentum
+        out = (x - mean) / (var + eps).sqrt()
+    else:
+        if running_mean is not None and running_var is not None:
+            mean ,var = running_mean,running_var
+        else:
+            var  = x.var((2,3),correction=0,keepdim=True)
+            mean = x.mean(axis=(2,3),keepdim=True)
+        out = (x - mean) / (var + eps).sqrt()
+    if weight is not None:
+        out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
+    return out,running_mean,running_var
 
+        
 
 
 
