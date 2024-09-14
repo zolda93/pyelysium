@@ -324,7 +324,8 @@ class Index(Function):
 class Reshape(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',shape:Tuple[int,...])->'Tensor':
-        ctx.shape = shape
+        ctx.save_for_backward(x)
+        ctx.shape = x.shape
         return e.Tensor(x.data.reshape(shape),requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
