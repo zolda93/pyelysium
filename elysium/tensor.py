@@ -137,6 +137,7 @@ class Tensor:
     def mean(self,axis:Union[Tuple[int,...],int,None]=None,keepdim:Optional[bool]=False)->'Tensor':return Mean.apply(self,axis=axis,keepdims=keepdim)
     def var(self,dim:Union[Tuple[int,...],int,None]=None,correction=1,keepdim=False)->'Tensor':return Var.apply(self,dim=dim,correction=correction,keepdim=keepdim)
     def view(self,shape):return View.apply(self,shape)
+    def reshape(self,shape:Tuple[int,...])->'Tensor':return Reshape.apply(self,shape)
     def squeeze(self,dim:Union[Tuple[int,...],None]=None)->'Tensor':return Squeeze.apply(self,dim=dim)
     def unsqueeze(self,dim:Tuple[int,...])->'Tensor':return Unsqueeze.apply(self,dim)
     def transpose(self,dim0:int,dim1:int)->'Tensor':return Transpose.apply(self,dim0,dim1)
@@ -157,39 +158,56 @@ class Tensor:
     def __hash__(self):return id(self)
     def __len__(self):return self.shape[0]
     def __neg__(self)->'Tensor':return Neg.apply(self)
-    def __add__(self,other:'Tensor')->'Tensor':return Add.apply(self,other)
-    def __iadd__(self,other:'Tesor')->'Tensor':return Add.apply(self,other,inplace=True)
+    def __add__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Add.apply(self,other)
+    def __iadd__(self,other:'Tesor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Add.apply(self,other,inplace=True)
     __radd__ = __add__
     add = __add__
     add_ = __iadd__
-    def __sub__(self,other:'Tensor')->'Tensor':return Sub.apply(self,other)
-    def __isub__(self,other:'Tensor')->'Tensor':return Sub.apply(self,other,inplace=True)
-    def __rsub__(self,other:'Tensor')->'Tensor':return sub(other,self)
+    def __sub__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Sub.apply(self,other)
+    def __isub__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Sub.apply(self,other,inplace=True)
+    def __rsub__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return sub(other,self)
     sub = __sub__
     sub_ = __isub__
-    def __mul__(self,other:'Tensor')->'Tensor':return Mul.apply(self,other)
-    def __imul__(self,other:'Tensor')->'Tensor':return Mul.apply(self,other,inplace=True)
+    def __mul__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Mul.apply(self,other)
+    def __imul__(self,other:'Tensor')->'Tensor':
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Mul.apply(self,other,inplace=True)
+    def __rmul__(self,other):
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
+        return Mul.apply(other,self)
     mul_ = __imul__
     mul = __mul__
     def __truediv__(self,other)->'Tensor':
-        if not isinstance(other,Tensor):other = Tensor(other,device=self.device)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Div.apply(self,other)
     def __idiv__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):other = Tensor(other,device=self.device)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Div.apply(self,other,inplace=True)
     def _rtruediv__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):other=Tensor(other)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return dive(other,self)
     div = __truediv__
     div_ = __idiv__
     def __pow__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):other = Tensor(other)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Pow.apply(self,other)
     def __ipow__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):other=Tensor(other)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Pow.apply(self,other,inplace=True)
     def __rpow__(self,other:'Tensor')->'Tensor':
-        if not isinstance(other,Tensor):other=Tensor(other)
+        if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Pow.apply(other,self)
     pow = __pow__
     pow_= __ipow__

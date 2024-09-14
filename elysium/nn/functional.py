@@ -40,4 +40,47 @@ def embedding(x, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_g
 def relu(x,inplace=False)->'Tensor':return ReLU.apply(x,inplace=inplace)
 def sigmoid(x)->'Tensor':return Sigmoid.apply(x)
 def logsigmoid(x)->'Tensor':return LogSigmoid.apply(x)
+def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,momentum=0.1,eps=1e-05)->'Tensor':
+    if training:
+        var = x.var((0,2,3),correction=0)
+        mean= x.mean(axis=(0,2,3))
+        if running_mean is not None and running_var is not None:
+            running_mean = (1 - momentum) * running_mean + mean * momentum 
+            running_var  = (1 - momentum) * running_var + x.var((0,2,3),correction=1) * momentum 
+        out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
+    else:
+        if running_mean is not None and running_var is not None:
+            mean ,var = running_mean,running_var
+        else:
+            var  = x.var((0,2,3),correction=0)
+            mean = x.mean(axis=(0,2,3))
+        out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
+    if weight is not None:
+        out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
+    return out,running_mean,running_var
+def layer_norm(x,normalized_shape,weight=None,bias=None,eps=1e-05)->'Tensor':
+    mean = x.mean(axis=tuple(range(-len(normalized_shape), 0)), keepdim=True)
+    var = x.var(dim=tuple(range(-len(normalized_shape), 0)), correction=0, keepdim=True)
+    x_normalized = (x - mean) / (var + eps).sqrt()
+    if weight is not None :
+        x_normalized = weight * x_normalized + (bias if bias is not None else 0)
+    return x_normalized
+def group_norm(x, num_groups, weight=None, bias=None, eps=1e-05)->'Tensor':
+    assert x.shape[1] % num_groups == 0,f'Number of groups must be divisible by input channels'
+    N, C, H, W = x.shape
+    x=x.reshape((N,num_groups,C // num_groups,H,W))
+    mean = x.mean(axis=(2,3,4),keepdim=True)
+    var = x.var(dim=(2,3,4),correction=0,keepdim=True)
+    out = (x-mean) / (var + eps).sqrt()
+    out=out.reshape((N,C,H,W))
+    if weight is not None:
+        out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
+    return out
+
+
+
+
+
+
+
 

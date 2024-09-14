@@ -321,6 +321,14 @@ class Index(Function):
             add_at = np.add.at
         add_at(grad_a,key,grad.data)
         return (e.Tensor(grad_a,device=a.device,dtype=a.dtype) if a.requires_grad else None,)
+class Reshape(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',shape:Tuple[int,...])->'Tensor':
+        ctx.shape = shape
+        return e.Tensor(x.data.reshape(shape),requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        return (e.Tensor(grad.data.reshape(ctx.shape),device=grad.device,dtype=grad.dtype),)
 class Transpose(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor',dim0:int,dim1:int)->'Tensor':
