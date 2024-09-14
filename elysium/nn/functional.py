@@ -49,12 +49,7 @@ def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,m
             running_var  = (1 - momentum) * running_var + x.var((0,2,3),correction=1) * momentum 
         out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
     else:
-        if running_mean is not None and running_var is not None:
-            mean ,var = running_mean,running_var
-        else:
-            var  = x.var((0,2,3),correction=0)
-            mean = x.mean(axis=(0,2,3))
-        out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
+        out = (x - running_mean[None,:,None,None]) / (running_var[None,:,None,None] + eps).sqrt()
     if weight is not None:
         out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
     return out
@@ -85,15 +80,12 @@ def instance_norm(x,running_mean=None,running_var=None, weight=None, bias=None, 
             running_var  = (1 - momentum) * running_var + x.var(dim=(0,2,3),correction=1) * momentum
         out = (x - mean) / (var + eps).sqrt()
     else:
-        if running_mean is not None and running_var is not None:
-            mean ,var = running_mean,running_var
-        else:
-            var  = x.var((2,3),correction=0,keepdim=True)
-            mean = x.mean(axis=(2,3),keepdim=True)
-        out = (x - mean) / (var + eps).sqrt()
+        if running_mean is None or running_var is None:
+            raise ValueError("Running mean and variance must be provided when use_input_stats=False")
+        out = (x - running_mean[None,:,None,None]) / (running_var[None,:,None,None] + eps).sqrt()
     if weight is not None:
         out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
-    return out,running_mean,running_var
+    return out
 
         
 
