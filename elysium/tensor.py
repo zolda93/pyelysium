@@ -85,7 +85,7 @@ class Tensor:
     def detach(self)->'Tensor':return Tensor(self.data,requires_grad=False,device=self.device,dtype=self.data.dtype)
     def zero_grad(self)->None:
         if self.grad is not None:
-            self.grad.data.fill(0)
+            self.grad.data.fill(0.)
     def __repr__(self)->str:
         grad_fn = ' ,grad_fn<' + self._ctx.func.__name__ + 'Backward' + str(self.device)+'>' if self._ctx is not None and self.requires_grad else ''
         dtype = f' ,dtype=elysium.{self.data.dtype}'

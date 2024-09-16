@@ -275,6 +275,77 @@ class LogSigmoid(Function):
         xp = cp if x.device=='gpu' else np
         grad_x = grad.data * xp.exp(-x.data + ctx.out)
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+class L1Loss(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',target:'Tensor',reduction:Optional[str]='mean')->'Tensor':
+        assert x.shape == target.shape ,f"target shape {target.shape} must match input shape {x.shape}"
+        ctx.save_for_backward(x,target)
+        ctx.reduction=reduction
+        xp = cp if x.device=='gpu' else np
+        loss = xp.abs(x.data - target.data)
+        if reduction == 'mean':
+            loss = loss.mean()
+        elif reduction == 'sum':
+            loss = loss.sum()
+        else:
+            raise ValueError("{} is not a valid value for reduction".format(reduction))
+        return e.Tensor(loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,target=ctx.get_saved_tensors()
+        xp = cp if x.device=='gpu' else np
+        grad_x = xp.sign(x.data - target.data)
+        if ctx.reduction == 'mean':grad_x = xp.divide(grad_x,x.data.size)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+class MSELoss(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',target:'Tensor',reduction:Optional[str]='mean')->'Tensor':
+        assert x.shape == target.shape ,f"target shape {target.shape} must match input shape {x.shape}"
+        ctx.save_for_backward(x,target)
+        ctx.reduction=reduction
+        loss = (x.data - target.data)**2
+        if reduction=='mean':
+            loss = loss.mean()
+        elif reduction == 'sum':
+            loss = loss.sum()
+        else:
+            raise ValueError("{} is not a valid value for reduction".format(reduction))
+        return e.Tensor(loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,target = ctx.get_saved_tensors()
+        grad_x = 2 * grad.data * (x.data - target.data)
+        xp = cp if x.device=='gpu' else np
+        if ctx.reduction == 'mean':grad_x = xp.divide(grad_x,x.data.size)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
+class BCELoss(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',target:'Tensor',weight=None,reduction='mean')->'Tensor':
+        assert x.shape == target.shape ,f"target shape {target.shape} must match input shape {x.shape}"
+        ctx.save_for_backward(x,target)
+        xp = cp if x.device=='gpu' else np
+        # Clamp input to prevent log(0) issues and to ensure numerical stability
+        eps = 1e-12
+        x_clamped = xp.clip(x.data, eps, 1.0 - eps)
+        # Compute the binary cross entropy loss
+        loss = - (target.data * xp.log(x_clamped) + (1 - target.data) * xp.log(1 - x_clamped))
+        if weight is not None:loss*=weight.data
+        if reduction=='mean':
+            loss=loss.mean()
+        elif reduction=='sum':
+            loss=loss.sum()
+        ctx.reduction,ctx.x_clamped,ctx.weight = reduction,x_clamped,weight
+        return e.Tensor(loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,target = ctx.get_saved_tensors()
+        grad_x = - (target.data / ctx.x_clamped) + (1 - target.data) / (1 - ctx.x_clamped)
+        if ctx.weight is not None:grad_x*=ctx.weight.data
+        if ctx.reduction == 'mean':grad_x /= x.data.size
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
+
+
+
 
 
 

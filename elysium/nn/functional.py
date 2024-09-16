@@ -88,6 +88,10 @@ def instance_norm(x,running_mean=None,running_var=None, weight=None, bias=None, 
     if weight is not None:
         out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
     return out
+def l1_loss(x:'Tensor', target:'Tensor',reduction='mean')->'Tensor':return L1Loss.apply(x,target,reduction=reduction)
+def mse_loss(x:'Tensor',target:'Tensor',reduction='mean')->'Tensor':return MSELoss.apply(x,target,reduction=reduction)
+def binary_cross_entropy(x:'Tensor', target:'Tensor', weight=None, reduction='mean')->'Tensor':return BCELoss.apply(x,target,weight=weight,reduction=reduction)
+
 
         
 

@@ -233,7 +233,7 @@ class Mean(Function):
         axis,keepdims = ctx.axis,ctx.keepdims
         grad = grad.data
         xp = cp if a.device == 'gpu' else np
-        divisor = xp.prod(xp.array([a.shape[i] for i in axis])) if axis is not None else a.size
+        divisor = xp.prod(xp.array([a.shape[i] for i in axis])) if axis is not None else a.data.size
         if not keepdims:grad = xp.expand_dims(grad,axis=axis)
         new_strides = tuple(0 if i in axis else s for i, s in enumerate(grad.strides))
         out = xp.lib.stride_tricks.as_strided(xp.divide(grad, divisor,dtype=grad.dtype), shape=a.shape, strides=new_strides)
