@@ -40,6 +40,10 @@ def embedding(x, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_g
 def relu(x,inplace=False)->'Tensor':return ReLU.apply(x,inplace=inplace)
 def sigmoid(x)->'Tensor':return Sigmoid.apply(x)
 def logsigmoid(x)->'Tensor':return LogSigmoid.apply(x)
+def leaky_relu(x, negative_slope=0.01, inplace=False)->'Tensor':return LeakyReLU.apply(x,negative_slope=negative_slope,inplace=inplace)
+def tanh(x)->'Tensor':return Tanh.apply(x)
+def softmax(x, dim=None)->'Tensor':return Softmax.apply(x,dim=dim)
+def log_softmax(x, dim=None)->'Tensor':return LogSoftmax.apply(x,dim=dim)
 def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,momentum=0.1,eps=1e-05)->'Tensor':
     if training:
         var = x.var((0,2,3),correction=0)
@@ -93,6 +97,7 @@ def mse_loss(x:'Tensor',target:'Tensor',reduction='mean')->'Tensor':return MSELo
 def binary_cross_entropy(x:'Tensor', target:'Tensor', weight=None, reduction='mean')->'Tensor':return BCELoss.apply(x,target,weight=weight,reduction=reduction)
 def nll_loss(x:'Tensor', target:'Tensor', weight=None,ignore_index=-100,reduction='mean')->'Tensor':return NllLoss.apply(x,target,weight=weight,ignore_index=ignore_index,reduction=reduction)
 def binary_cross_entropy_with_logits(x:'Tensor', target:'Tensor', weight=None,reduction='mean', pos_weight=None)->'Tensor':return BCEWithLogitsLoss.apply(x,target,weight=weight,reduction=reduction,pos_weight=pos_weight)
+def cross_entropy(x,target,axis=1,weight=None,ignore_index=-100,reduction='mean'):return nll_loss(log_softmax(x,dim=axis),target,weight=weight,ignore_index=ignore_index,reduction=reduction)
 
 
 

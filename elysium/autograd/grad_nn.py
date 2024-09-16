@@ -242,7 +242,7 @@ class ReLU(Function):
     def forward(ctx:Context,x:'Tensor',inplace:bool=False)->'Tensor':
         ctx.save_for_backward(x)
         if inplace:
-            x.data = x.data>0
+            x.data[:] = x.data>0
             return e.Tensor(x.data,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
         return e.Tensor(x.data>0,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
@@ -274,6 +274,68 @@ class LogSigmoid(Function):
         x=ctx.get_saved_tensors()[0]
         xp = cp if x.device=='gpu' else np
         grad_x = grad.data * xp.exp(-x.data + ctx.out)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+class Tanh(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor')->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if x.device=='gpu' else np
+        out = xp.tanh(x.data)
+        ctx.out = out
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        return (e.Tensor(grad.data * (1 - ctx.out * ctx.out),device=x.device,dtype=x.dtype),)
+class LeakyReLU(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',negative_slope=0.01, inplace=False)->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if x.device=='gpu' else np
+        if inplace:
+            x.data[:] = xp.maximum(0,x.data) + negative_slope * xp.minimum(0, x.data)
+            ctx.out=x.data
+            return e.Tensor(x.data,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+        out = xp.maximum(0, x.data) + negative_slope * xp.minimum(0, x.data)
+        ctx.out = out
+        return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        xp = cp if x.device=='gpu' else np
+        grad_x = xp.where(ctx.out > 0,1,negative_slope) * grad.data
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+class Softmax(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',dim=None)->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if x.device=='gpu' else np
+        aug = x.data - xp.max(x.data,axis=dim,keepdims=True)
+        exp = xp.exp(aug)
+        sum_exp = xp.sum(exp,axis=dim,keepdims=True)
+        ctx.out, ctx.dim= exp/sum_exp,dim
+        return e.Tensor(exp/sum_exp,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        grad_x = (grad.data - xp.sum((grad.data * ctx.out),axis=ctx.dim,keepdims=True)) * grad.data
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+class LogSoftmax(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',dim=None)->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if x.device=='gpu' else np
+        aug = x.data - xp.max(x.data,axis=dim,keepdims=True)
+        exp = xp.exp(aug)
+        sum_exp = xp.sum(exp,axis=dim,keepdims=True)
+        log_sum_exp = xp.log(sum_exp)
+        ctx.dim,ctx.softmax = dim,exp/sum_exp
+        return e.Tensor(aug - log_sum_exp,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        xp = cp if x.device=='gpu' else np
+        grad_x = grad.data - xp.sum(grad.data,axis=ctx.dim,keepdims=True) * ctx.softmax
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
 class L1Loss(Function):
     @staticmethod
