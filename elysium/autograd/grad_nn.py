@@ -334,6 +334,8 @@ class BCELoss(Function):
             loss=loss.mean()
         elif reduction=='sum':
             loss=loss.sum()
+        else:
+            raise ValueError("{} is not a valid value for reduction".format(reduction))
         ctx.reduction,ctx.x_clamped,ctx.weight = reduction,x_clamped,weight
         return e.Tensor(loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
@@ -362,6 +364,8 @@ class NllLoss(Function):
             nll_loss = nll_loss.mean()
         elif reduction == 'sum':
             nll_loss = nll_loss.sum()
+        else:
+            raise ValueError("{} is not a valid value for reduction".format(reduction))
         ctx.weight,ctx.reduction,ctx.ignore_index = weight,reduction,ignore_index
         return e.Tensor(nll_loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
@@ -378,7 +382,40 @@ class NllLoss(Function):
         if ctx.weight is not None:grad_x *= ctx.weight.data[xp.newaxis, :]
         if ctx.reduction == 'mean':grad_x /= batch_size
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
-
+class BCEWithLogitsLoss(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',target:'Tensor',weight=None,reduction='mean',pos_weight=None)->'Tensor':
+        ctx.save_for_backward(x,target)
+        xp = cp if x.device=='gpu' else np
+        # Stable log-sum-exp trick for sigmoid
+        log_sigmoid = -xp.logaddexp(0, -x.data)
+        log_one_minus_sigmoid = -x.data - xp.logaddexp(0, -x.data)
+        if pos_weight is not None:
+            loss = -(pos_weight.data * target.data * log_sigmoid + (1 - target.data) * log_one_minus_sigmoid)
+        else:
+            loss = -(target.data * log_sigmoid + (1 - target.data) * log_one_minus_sigmoid)
+        if weight is not None:loss *= weight.data
+        if reduction == 'mean':
+            loss = loss.mean()
+        elif reduction == 'sum':
+            loss = loss.sum()
+        else:
+            raise ValueError("{} is not a valid value for reduction".format(reduction))
+        ctx.weight,ctx.reduction,ctx.pos_weight=weight,reduction,pos_weight
+        return e.Tensor(loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,target = ctx.get_saved_tensors()
+        xp = cp if x.device=='gpu' else np
+        # Sigmoid function without overflow/underflow
+        sigmoid_x = 1 / (1 + xp.exp(-x.data))
+        if ctx.pos_weight is not None:
+            grad_x = ctx.pos_weight.data * target.data * (sigmoid_x - 1) + (1 - target.data) * sigmoid_x
+        else:
+            grad_x = target.data * (sigmoid_x - 1) + (1 - target.data) * sigmoid_x
+        if ctx.weight is not None:grad_x *= ctx.weight.data
+        if ctx.reduction == 'mean':grad_x /= x.data.size
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
     
 
 

@@ -92,6 +92,7 @@ def l1_loss(x:'Tensor', target:'Tensor',reduction='mean')->'Tensor':return L1Los
 def mse_loss(x:'Tensor',target:'Tensor',reduction='mean')->'Tensor':return MSELoss.apply(x,target,reduction=reduction)
 def binary_cross_entropy(x:'Tensor', target:'Tensor', weight=None, reduction='mean')->'Tensor':return BCELoss.apply(x,target,weight=weight,reduction=reduction)
 def nll_loss(x:'Tensor', target:'Tensor', weight=None,ignore_index=-100,reduction='mean')->'Tensor':return NllLoss.apply(x,target,weight=weight,ignore_index=ignore_index,reduction=reduction)
+def binary_cross_entropy_with_logits(x:'Tensor', target:'Tensor', weight=None,reduction='mean', pos_weight=None)->'Tensor':return BCEWithLogitsLoss.apply(x,target,weight=weight,reduction=reduction,pos_weight=pos_weight)
 
 
 
