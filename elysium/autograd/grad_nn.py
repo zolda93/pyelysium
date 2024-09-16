@@ -296,7 +296,7 @@ class L1Loss(Function):
         xp = cp if x.device=='gpu' else np
         grad_x = xp.sign(x.data - target.data)
         if ctx.reduction == 'mean':grad_x = xp.divide(grad_x,x.data.size)
-        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
 class MSELoss(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',target:'Tensor',reduction:Optional[str]='mean')->'Tensor':
@@ -343,6 +343,44 @@ class BCELoss(Function):
         if ctx.weight is not None:grad_x*=ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
+class NllLoss(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',target:'Tensor',weight=None,reduction='mean',ignore_index=-100)->'Tensor':
+        xp = cp if x.device=='gpu' else np
+        target.data = target.data.astype(xp.int32)
+        ctx.save_for_backward(x,target)
+        # Input should be log-probabilities (logits after LogSoftmax)
+        batch_size = target.shape[0]
+        nll_loss = -x.data[xp.arange(batch_size),target.data]# Gather the log-probabilities corresponding to the target classes
+        if weight is not None:
+            class_weights = weight.data[target.data]
+            nll_loss*=class_weights
+        if ignore_index is not None:
+            mask = (target.data != ignore_index)
+            nll_loss = nll_loss[mask]
+        if reduction   == 'mean':
+            nll_loss = nll_loss.mean()
+        elif reduction == 'sum':
+            nll_loss = nll_loss.sum()
+        ctx.weight,ctx.reduction,ctx.ignore_index = weight,reduction,ignore_index
+        return e.Tensor(nll_loss,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x,target=ctx.get_saved_tensors()
+        xp = cp if x.device=='gpu' else np
+        batch_size = target.shape[0]
+        # Create a mask for the valid targets (not ignored)
+        valid_mask = -(target.data != ctx.ignore_index).astype(xp.float32)
+        grad_x = xp.zeros_like(x.data)
+        # Use the valid_mask to update the gradient only for valid targets
+        grad_x[xp.arange(batch_size), target.data] =  valid_mask
+        # Apply class weights if provided
+        if ctx.weight is not None:grad_x *= ctx.weight.data[xp.newaxis, :]
+        if ctx.reduction == 'mean':grad_x /= batch_size
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
+
+    
+
 
 
 
