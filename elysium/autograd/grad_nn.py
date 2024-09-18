@@ -16,7 +16,10 @@ class Convolution(Function):
             raise RuntimeError(f'Given groups={groups}, weight of size {w.shape}, '
                                f'expected input{x.shape} to have {groups * w.shape[-3]} channels, '
                                f'but got {x.shape[-3]} channels instead')
-        ctx.save_for_backward(x,w,bias)
+        if bias is not None:
+            ctx.save_for_backward(x,w,bias)
+        else:
+            ctx.save_for_backward(x,w)
         bias = bias.data if bias is not None else None
         output,x_padded,extra_padding = conv2d(x.data,w.data,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode)
         ctx.x_padded,ctx.extra_padding=x_padded,extra_padding
@@ -25,7 +28,12 @@ class Convolution(Function):
         return e.Tensor(output,requires_grad=requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        x,w,bias=ctx.get_saved_tensors()
+        #x,w,bias=ctx.get_saved_tensors()
+        ts = ctx.get_saved_tensors()
+        if len(ts) == 3:
+            x,w,bias = ts
+        else:
+            x,w,bias = ts[0],ts[1],None
         stride,padding,dilation,groups,padding_mode=ctx.stride,ctx.padding,ctx.dilation,ctx.groups,ctx.padding_mode
         x_padded,extra_padding=ctx.x_padded,ctx.extra_padding
         if x.requires_grad:x_grad=conv_transpose2d(grad.data,w.data,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode,input=x.data,extra_padding=extra_padding)
@@ -49,7 +57,11 @@ class TransposedConvolution(Function):
             raise RuntimeError(f'Given transposed=1, weight of size {w.shape}, '
                                f'expected input {x.shape} to have {w.shape[-4]} channels, '
                                f'but got {x.shape[-3]} channels instead')
-        ctx.save_for_backward(x,w,bias)
+        #ctx.save_for_backward(x,w,bias)
+        if bias is not None:
+            ctx.save_for_backward(x,w,bias)
+        else:
+            ctx.save_for_backward(x,w)
         bias = bias.data if bias is not None else None
         if padding_mode != 'zeros':raise ValueError('Only "zeros" padding mode is supported for ConvTranspose2d')
         output= conv_transpose2d(x.data,w.data,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,output_padding=output_padding)
@@ -58,7 +70,12 @@ class TransposedConvolution(Function):
         return e.Tensor(output,requires_grad=requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        x,w,bias=ctx.get_saved_tensors()
+        #x,w,bias=ctx.get_saved_tensors()
+        ts = ctx.get_saved_tensors()
+        if len(ts) == 3:
+            x,w,bias = ts
+        else:
+            x,w,bias = ts[0],ts[1],None
         stride,padding,dilation,groups=ctx.stride,ctx.padding,ctx.dilation,ctx.groups
         w_grad,grad_padded = conv2d_backward_w(grad.data,x.data ,stride,padding,dilation,groups,w.data,is_transpose=True)
         if x.requires_grad:x_grad=conv2d(grad_padded,w.data,stride=stride,padding=(0,0),dilation=dilation,groups=groups)[0]

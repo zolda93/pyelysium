@@ -81,19 +81,40 @@ def conv2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mod
     c_in_group = c_in // groups
     c_out_group = c_out // groups
     kernel_shape = (c_in_group, dilated_kh, dilated_kw)
-    if is_backward_w:weight=weight.reshape(n, groups, c_out_group, 1, 1, kh * kw)
-    else:weight=weight.reshape(1, groups, c_out_group, 1, 1, c_in_group * kh * kw)
-    windows = sliding_window_view(x.reshape(n,groups,c_in_group,h,w), kernel_shape, axis=(-3, -2, -1))[:, :, :, ::sh, ::sw, :, ::dh, ::dw]
-    h_out, w_out = windows.shape[3:5]
-    if is_backward_w:windows = windows.reshape(n, groups, h_out, w_out, c_in_group , kh * kw)
-    else:windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
     if is_backward_w:
-        y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, weight).reshape(c_out,c_in//groups,h_out,w_out)
+        weight = weight.reshape(n, groups, c_out_group, 1, 1, kh * kw)
+        windows = sliding_window_view(x.reshape(n,groups,c_in_group,h,w), kernel_shape, axis=(-3, -2, -1))[:, :, :, ::sh, ::sw, :, ::dh, ::dw]
+        h_out, w_out = windows.shape[3:5]
+        windows = windows.reshape(n, groups, h_out, w_out, c_in_group , kh * kw)
+        if groups == 1:
+            y = xp.tensordot(windows, weight, axes=([0,1,5], [0,1,5])).transpose(3,2,0,1,4,5).reshape(c_out,c_in//groups,h_out,w_out)
+        else:
+            y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, weight,optimize=True).reshape(c_out,c_in//groups,h_out,w_out)
         return y,x
     else:
-        y = xp.einsum("abcdei,abcdei->abcde", windows, weight).reshape(n, c_out, h_out, w_out)    
+        weight=weight.reshape(1, groups, c_out_group, 1, 1, c_in_group * kh * kw)
+        windows = sliding_window_view(x.reshape(n,groups,c_in_group,h,w), kernel_shape, axis=(-3, -2, -1))[:, :, :, ::sh, ::sw, :, ::dh, ::dw]
+        h_out, w_out = windows.shape[3:5]
+        windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
+        if groups == 1:
+            y = xp.tensordot(windows, weight, axes=([1,5], [0, 5])).reshape(n, c_out, h_out, w_out)
+        else:
+            y = xp.einsum("abcdei,abcdei->abcde", windows, weight,optimize=True).reshape(n, c_out, h_out, w_out)
     if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
     return y,x,padding
+    #if is_backward_w:weight=weight.reshape(n, groups, c_out_group, 1, 1, kh * kw)
+    #else:weight=weight.reshape(1, groups, c_out_group, 1, 1, c_in_group * kh * kw)
+    #windows = sliding_window_view(x.reshape(n,groups,c_in_group,h,w), kernel_shape, axis=(-3, -2, -1))[:, :, :, ::sh, ::sw, :, ::dh, ::dw]
+    #h_out, w_out = windows.shape[3:5]
+    #if is_backward_w:windows = windows.reshape(n, groups, h_out, w_out, c_in_group , kh * kw)
+    #else:windows = windows.reshape(n, groups, 1, h_out, w_out, c_in_group * kh * kw)
+    #if is_backward_w:
+      #  y = xp.einsum("nghwcf,ngxlmf->gxchw", windows, weight).reshape(c_out,c_in//groups,h_out,w_out)
+     #   return y,x
+    #else:
+     #   y = xp.einsum("abcdei,abcdei->abcde", windows, weight).reshape(n, c_out, h_out, w_out)    
+    #if bias is not None:y = y + bias.reshape(1, c_out, 1, 1)
+    #return y,x,padding
 
 def conv_transpose2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,output_padding=(0, 0),padding_mode='zeros',input=None,extra_padding=((0,0),(0,0))):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
