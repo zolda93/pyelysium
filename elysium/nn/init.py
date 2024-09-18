@@ -1,5 +1,5 @@
 import math
-from elysium import cp,np
+from elysium import Tensor,cp,np
 from .parameter import *
 def _no_grad_uniform_(tensor, a, b):
     xd0 = tensor.data
