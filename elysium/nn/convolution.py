@@ -46,7 +46,7 @@ class ConvTranspose2d(Conv):
         if padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose2d')
         
-        self.output_padding = output_padding
+        self.output_padding = pair(output_padding)
         super().__init__(in_channels, out_channels, kernel_size, bias=bias, transpose=True,
                          stride=stride, padding=padding, dilation=dilation, 
                          groups=groups, padding_mode=padding_mode, device=device)
