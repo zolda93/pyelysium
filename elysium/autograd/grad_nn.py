@@ -424,10 +424,11 @@ class BCELoss(Function):
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x,target = ctx.get_saved_tensors()
+        xp = cp if x.device=='gpu' else np
         grad_x = - (target.data / ctx.x_clamped) + (1 - target.data) / (1 - ctx.x_clamped)
         if ctx.weight is not None:grad_x*=ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
-        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
 class NllLoss(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',target:'Tensor',weight=None,reduction='mean',ignore_index=-100)->'Tensor':
