@@ -65,7 +65,7 @@ def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,m
 def layer_norm(x,normalized_shape,weight=None,bias=None,eps=1e-05)->'Tensor':
     axis = tuple(ax if ax >= 0 else x.ndim + ax for ax in tuple(range(-len(normalized_shape), 0)))
     mean = x.mean(axis=axis,keepdim=True)
-    var = x.var(dim=axis, correction=0,keepdim=True) if weight is not None else x.var(dim=tuple(range(-len(normalized_shape), 0)), correction=1, keepdim=True)
+    var = x.var(dim=axis, correction=0,keepdim=True) if weight is not None else x.var(dim=axis, correction=1, keepdim=True)
     x_normalized = (x - mean) / (var + eps).sqrt()
     if weight is not None :
         x_normalized = weight * x_normalized + bias if bias is not None else 0
