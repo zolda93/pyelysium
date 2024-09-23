@@ -318,6 +318,7 @@ def col2im(xp,col,input_shape,kernel_size,stride,padding):
     return x
 def avgpool2d_backward(x,grad,divisor,kernel_size,stride,padding,ceil_mode=False):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    if isinstance(divisor,xp.ndarray):divisor = divisor.transpose(0,3,1,2)
     N,C,H,W = x.shape
     _,_,h_out,w_out = grad.shape
     kh,kw = kernel_size
