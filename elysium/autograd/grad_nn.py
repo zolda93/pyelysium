@@ -118,7 +118,7 @@ class ConstantPad2d(Function):
     def forward(ctx:Context,x:'Tensor',padding,val)->'Tensor':
         xp = cp if x.device=='gpu' else np
         ctx.save_for_backward(x)
-        let,right,top,bottom = convert_padding(padding)
+        left,right,top,bottom = convert_padding(padding)
         ctx.padding=padding
         if x.ndim == 3:
             out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='constant',constant_values=val)[0]
@@ -428,7 +428,7 @@ class BCELoss(Function):
         grad_x = - (target.data / ctx.x_clamped) + (1 - target.data) / (1 - ctx.x_clamped)
         if ctx.weight is not None:grad_x*=ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
-        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),)
+        return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
 class NllLoss(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',target:'Tensor',weight=None,reduction='mean',ignore_index=-100)->'Tensor':

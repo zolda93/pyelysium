@@ -108,4 +108,3 @@ def cross_entropy(x,target,axis=1,weight=None,ignore_index=-100,reduction='mean'
 
 
 
-

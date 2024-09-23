@@ -5,9 +5,9 @@ def convert_padding(padding):
     """Convert padding to (left, right, top, bottom) format."""
     if isinstance(padding, int):
         return (padding, padding, padding, padding)
-    elif isinstance(padding, tuple) and len(padding) == 2:
+    elif isinstance(padding,(list, tuple)) and len(padding) == 2:
         return (padding[1], padding[1], padding[0], padding[0])
-    elif isinstance(padding, tuple) and len(padding) == 4:
+    elif isinstance(padding, (list,tuple)) and len(padding) == 4:
         return padding
     else:
         raise ValueError("Invalid padding format.")
@@ -108,6 +108,7 @@ def conv_transpose2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,o
     dilated_kh = (wh - 1) * dilation[0] + 1
     dilated_kw = (ww - 1) * dilation[1] + 1
     x_padded = pad2d(x_dilated, ((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
+    print('x_padded',x_padded.shape)
     x_padded = x_padded.reshape(n, groups, c_in // groups, x_padded.shape[-2], x_padded.shape[-1])
     w_t = w_t.reshape(groups,c_in // groups,c_out_by_groups,wh,ww).transpose(0, 2, 1, 3, 4).reshape(1, groups, c_out_by_groups, 1, 1, (c_in // groups) * wh * ww)
     kernel_shape = (c_in // groups, dilated_kh, dilated_kw)
@@ -265,14 +266,64 @@ def avgpool2d_forward(x, kernel_size, stride=None, padding=(0, 0), ceil_mode=Fal
         divisor = pool_area
     out = xp.sum(windows, axis=(4, 5)) / divisor
     return out.transpose(0,3,1,2),divisor
+def col2im_gpu(col, sy, sx, ph, pw, h, w):
+    n, c, kh, kw, out_h, out_w = col.shape
+    dx, dy = 1, 1
+    img = cp.empty((n, c, h, w),dtype=col.dtype)
+    cp.ElementwiseKernel(
+        'raw T col, int32 h, int32 w, int32 out_h, int32 out_w,'
+        'int32 kh, int32 kw, int32 sy, int32 sx, int32 ph, int32 pw,'
+        'int32 dx, int32 dy',
+        'T img',
+        '''
+           int c0 = i / (h * w);
+           int y  = i / w % h;
+           int x  = i % w;
+           T val = 0;
+           for (int ky = 0; ky < kh; ++ky) {
+             int out_y = (y + ph - ky * dy);
+             if (0 > out_y || out_y >= out_h * sy) continue;
+             if (out_y % sy != 0) continue;
+             out_y /= sy;
+             for (int kx = 0; kx < kw; ++kx) {
+               int out_x = (x + pw - kx * dx);
+               if (0 > out_x || out_x >= out_w * sx) continue;
+               if (out_x % sx != 0) continue;
+               out_x /= sx;
+               int k = out_y + out_h * (kx + kw * (ky + kh * c0));
+               val = val + col[out_x + out_w * k];
+             }
+           }
+           img = val;
+        ''',
+        'col2im')(col.reduced_view(),
+                  h, w, out_h, out_w, kh, kw, sy, sx, ph, pw, dx, dy, img)
+    return img
+def col2im(xp,col,input_shape,kernel_size,stride,padding):
+    N,C,H,W = input_shape
+    kh,kw = kernel_size
+    sh,sw = stride
+    ph,pw = padding
+    OH = (H + 2*ph - kh)//sh + 1
+    OW = (W + 2*pw - kw)//sw + 1
+    if xp == cp:
+        x = col2im_gpu(col, sh, sw, ph, pw, H, W)
+    else:
+        x = np.zeros((N, C, H + 2 * ph + sh - 1, W + 2 * pw + sw - 1),dtype=col.dtype)
+        for j in range(kh):
+            j_lim = j + sh*OH
+            for i in range(kw):
+                i_lim = i + sw*OW
+                x[:, :, j:j_lim:sh, i:i_lim:sw] += col[:, :, j, i, :, :]
+        x = x[:, :, ph:H + ph, pw:W + pw]
+    return x
 def avgpool2d_backward(x,grad,divisor,kernel_size,stride,padding,ceil_mode=False):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-    x_grad = np.zeros_like(x)
-    windows ,padded = sliding_window_view_pool(x_grad,kernel_size,stride,(1,1),padding,ceil_mode,val=0)
-    grad_t = grad.transpose(0, 2, 3, 1)
-    grad_t /= divisor # Shape: (batch_size, out_h, out_w, channels)
-    windows += grad_t[...,None,None]
-    hp, wp = padding
-    h, w = x_grad.shape[-2:]
-    x_grad = padded[..., hp:(hp + h), wp:(wp + w)]
-    return x_grad
+    N,C,H,W = x.shape
+    _,_,h_out,w_out = grad.shape
+    kh,kw = kernel_size
+    sh,sw = stride
+    ph,pw = padding
+    grad /= divisor
+    grad = xp.broadcast_to(grad.reshape(-1),(kh,kw,N*C*h_out*w_out)).reshape(kh,kw,N,C,h_out,w_out).transpose(2,3,0,1,4,5)
+    return col2im(xp,grad,x.shape,kernel_size,stride,padding)
