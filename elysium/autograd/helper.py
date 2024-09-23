@@ -108,7 +108,6 @@ def conv_transpose2d(x,weight,bias=None,stride=1,padding=0,dilation=1,groups=1,o
     dilated_kh = (wh - 1) * dilation[0] + 1
     dilated_kw = (ww - 1) * dilation[1] + 1
     x_padded = pad2d(x_dilated, ((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
-    print('x_padded',x_padded.shape)
     x_padded = x_padded.reshape(n, groups, c_in // groups, x_padded.shape[-2], x_padded.shape[-1])
     w_t = w_t.reshape(groups,c_in // groups,c_out_by_groups,wh,ww).transpose(0, 2, 1, 3, 4).reshape(1, groups, c_out_by_groups, 1, 1, (c_in // groups) * wh * ww)
     kernel_shape = (c_in // groups, dilated_kh, dilated_kw)
