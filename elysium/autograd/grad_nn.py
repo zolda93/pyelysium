@@ -129,7 +129,6 @@ class ConstantPad2d(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x = ctx.get_saved_tensors()[0]
         left,right,top,bottom=convert_padding(ctx.padding)
-        left, right, top, bottom = self.padding
         h_in = grad.shape[-2] - top - bottom
         w_in = grad.shape[-1] - left - right
         return  (e.Tensor(grad.data[..., top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
