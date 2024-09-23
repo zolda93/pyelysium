@@ -6,8 +6,7 @@ class ConstantPad2d:
     def __call__(self,x):return pad(x,self.padding,value=self.value)
 class ZeroPad2d(ConstantPad2d):
     def __init__(self,padding):
-        self.padding = padding
-        self.value = 0.
+        super().__init__(padding,0.)
 class ReflectionPad2d:
     def __init__(self,padding):
         self.padding=padding

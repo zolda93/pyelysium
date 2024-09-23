@@ -65,6 +65,7 @@ class Tensor:
     def astype(self,dtype):
         self.data = self.data.astype(dtype)
         return self
+    def item(self):return self.data.item()
     def numel(self):return self.data.size
     def to(self,device:str)->'Tensor':
         if device == self.device:

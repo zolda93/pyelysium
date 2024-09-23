@@ -44,7 +44,7 @@ def leaky_relu(x, negative_slope=0.01, inplace=False)->'Tensor':return LeakyReLU
 def tanh(x)->'Tensor':return Tanh.apply(x)
 def softmax(x, dim=None)->'Tensor':return Softmax.apply(x,dim=dim)
 def log_softmax(x, dim=None)->'Tensor':return LogSoftmax.apply(x,dim=dim)
-def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,momentum=0.1,eps=1e-05)->'Tensor':
+def batch_norm_impl(x,running_mean,running_var,weight=None,bias=None,training=False,momentum=0.1,eps=1e-05)->'Tensor':
     if training:
         var = x.var((0,2,3),correction=0)
         mean= x.mean(axis=(0,2,3))
@@ -53,12 +53,15 @@ def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,m
             running_var  = (1 - momentum) * running_var + x.var((0,2,3),correction=1) * momentum 
         out = (x - mean[None,:,None,None]) / (var[None,:,None,None] + eps).sqrt()
     else:
-        if running_mean is None and running_var is None:
-            raise RuntimeError('running_mean end running_var must be defined in evaluation mode')
-        out = (x - running_mean[None,:,None,None]) / (running_var[None,:,None,None] + eps).sqrt()
-    if weight is not None:
-        out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
-    return out
+        if running_mean is not None and running_var is not None:
+            mean ,var = running_mean[None,:,None,None],running_var[None,:,None,None]
+        else:
+            mean,var = x.mean(axis=(0,2,3)),x.var((0,2,3),correction=0)
+        out = (x - mean) / (var + eps).sqrt()
+    if weight is not None:out = weight[None,:,None,None] * out + (bias[None,:,None,None] if bias is not None else 0)
+    return out,running_mean,running_var
+def batch_norm(x,running_mean,running_var,weight=None,bias=None,training=False,momentum=0.1,eps=1e-05):
+    return batch_norm_impl(x,running_mean,running_var,weight=weight,bias=bias,training=training,momentum=momentum,eps=eps)[0]
 def layer_norm(x,normalized_shape,weight=None,bias=None,eps=1e-05)->'Tensor':
     mean = x.mean(axis=tuple(range(-len(normalized_shape), 0)), keepdim=True)
     var = x.var(dim=tuple(range(-len(normalized_shape), 0)), correction=0, keepdim=True)
