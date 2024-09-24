@@ -22,13 +22,11 @@ class SGD(Optim):
                 if self.weight_decay!=0:
                     grad += self.weight_decay*param_value
                 if self.momentum!=0:
-                    buf = self.momentum_buffers[param_name]
-                    buf = self.momentum*buf + (1 - self.dampening) * grad
+                    self.momentum_buffers[param_name] = self.momentum*self.momentum_buffers[param_name] + (1 - self.dampening) * grad
                     if self.nesterov:
-                        grad += self.momentum * buf
+                        grad += self.momentum * self.momentum_buffers[param_name]
                     else:
-                        grad = buf
-                    grad= buf
+                        grad= self.momentum_buffers[param_name]
                 if self.maximize:
                     param_value += self.lr * grad
                 else:

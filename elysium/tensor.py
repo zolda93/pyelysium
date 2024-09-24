@@ -226,4 +226,10 @@ class Tensor:
             return Squeeze.apply(Bmm.apply(View.apply(self,(1,*self.shape)),other),-2)
         else:
             return Bmm.apply(self,other)
+    @staticmethod
+    def maximum(x,y,out=None):
+        xp = cp if x.device=='gpu' else np
+        if out is not None:return Tensor(xp.maximum(x.data,y.data,out=out),device=x.device,dtype=x.dtype)
+        out = xp.maximum(x.data,y.data) 
+        return Tensor(out,device=x.device,dtype=x.dtype)
 
