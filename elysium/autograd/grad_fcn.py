@@ -55,7 +55,7 @@ class Mul(Function):
         requires_grad = a.requires_grad|b.requires_grad
         if inplace:
             a.data*=b.data
-            return e.Tensor(a.data,requires_grad=require_grad,device=a.device,dtype=a.dtype)
+            return e.Tensor(a.data,requires_grad=requires_grad,device=a.device,dtype=a.dtype)
         return e.Tensor(a.data*b.data,requires_grad=requires_grad,device=a.device,dtype=a.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
