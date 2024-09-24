@@ -26,8 +26,8 @@ class AdamW(Optim):
                 # Update first and second moment estimates
                 self.m[param_name] = self.betas[0] * self.m[param_name] + (1 - self.betas[0]) * grad
                 self.v[param_name] = self.betas[1] * self.v[param_name] + (1 - self.betas[1]) * (grad ** 2)
-                m_hat = self.m[param_name] / (1 - betas[0]**self._step)
-                v_hat = self.v[param_name] / (1 - betas[1]**self._step)
+                m_hat = self.m[param_name] / (1 - self.betas[0]**self._step)
+                v_hat = self.v[param_name] / (1 - self.betas[1]**self._step)
                 if self.amsgrad:
                     e.Tensor.maximum(self.v_hat[param_name], v_hat,out=self.v_hat[param_name])
                     param_value -= self.lr* m_hat / (self.v_hat[param_name].sqrt() + self.eps)
