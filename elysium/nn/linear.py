@@ -8,7 +8,6 @@ class Linear:
         self.in_features=in_features
         self.out_features=out_features
         self.weight = Parameter(zeros((out_features,in_features))).to(device)
-        print('weight shape',self.weight.shape)
         self.bias = Parameter(zeros(out_features)).to(device) if bias else None
         self.reset_parameters()
     def reset_parameters(self):
