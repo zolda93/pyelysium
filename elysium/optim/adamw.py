@@ -21,8 +21,8 @@ class AdamW(Optim):
             self._step += 1
             for param_name, param_value in self.parameters:
                 grad = param_value.grad
-                if grad is None:continue  # Skip if no gradient is available
-                param_value -= self.lr * self.weight_decay * param_value
+                #if grad is None:continue  # Skip if no gradient is available
+                param_value *= (1 - self.lr * self.weight_decay )
                 # Update first and second moment estimates
                 self.m[param_name] = self.betas[0] * self.m[param_name] + (1 - self.betas[0]) * grad
                 self.v[param_name] = self.betas[1] * self.v[param_name] + (1 - self.betas[1]) * (grad ** 2)
