@@ -28,7 +28,6 @@ class AdamW(Optim):
                 m_hat = self.m[param_name] / (1 - betas[0]**self._step)
                 v_hat = self.v[param_name] / (1 - betas[1]**self._step)
                 if self.amsgrad:
-                    #iv_hat_max = self.v_hat[param_name]
                     e.Tensor.maximum(self.v_hat[param_name], v_hat,out=self.v_hat[param_name])
                     param_value -= self.lr* m_hat / (self.v_hat[param_name].sqrt() + self.eps)
                 else:
