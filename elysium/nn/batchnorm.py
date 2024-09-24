@@ -3,15 +3,15 @@ from .functional import batch_norm_impl
 from . import init
 from .parameter import Parameter
 class BatchNorm2d:
-    def __init__(self,num_features,eps=1e-5,momentum=0.1,affine=True,track_running_stats=True,training=True):
+    def __init__(self,num_features,eps=1e-5,momentum=0.1,affine=True,track_running_stats=True,training=True,device='cpu'):
         self.num_features = num_features
         self.eps = eps
         self.momentum = momentum
         self.affine = affine
         self.track_running_stats = track_running_stats
         self.training = training
-        self.weight,self.bias = (Parameter(ones(num_features)),Parameter(zeros(num_features))) if self.affine else (None,None)
-        self.running_mean,self.running_var,self.num_batches_tracked = (zeros(num_features),ones(num_features),Tensor(0,dtype=np.int32)) if self.track_running_stats else (None,None,None)
+        self.weight,self.bias = (Parameter(ones(num_features)).to(device),Parameter(zeros(num_features)).to(device)) if self.affine else (None,None)
+        self.running_mean,self.running_var,self.num_batches_tracked = (zeros(num_features).to(device),ones(num_features).to(device),Tensor(0,dtype=np.int32).to(device)) if self.track_running_stats else (None,None,None)
         self.reset_parameters()
     def reset_running_stats(self):
         if self.track_running_stats:

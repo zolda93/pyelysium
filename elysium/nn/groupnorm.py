@@ -9,7 +9,7 @@ class GroupNorm:
         self.num_channels = num_channels
         self.eps = eps
         self.affine = affine
-        self.weight,self.bias = (Parameter(empty((num_channels),device=device)),Parameter(empty((num_channels), device=device))) if self.affine else (None,None)
+        self.weight,self.bias = (Parameter(empty((num_channels))).to(device),Parameter(empty((num_channels)).to(device))) if self.affine else (None,None)
         self.reset_parameters()
     def reset_parameters(self):
         if self.affine:

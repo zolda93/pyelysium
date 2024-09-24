@@ -98,13 +98,13 @@ def arange(start, stop, step=1, requires_grad=False, device='cpu', dtype=np.floa
     return Tensor(xp.arange(start, stop, step, dtype=dtype), requires_grad=requires_grad, device=device, dtype=dtype)
 
 # Functions to create tensors like a given tensor
-def zeros_like(t, requires_grad=False, **kwargs):
+def zeros_like(t, requires_grad=False,device='cpu',dtype=np.float32):
     """Creates a tensor of zeros with the same shape as the input tensor."""
-    return zeros(*t.shape, requires_grad=requires_grad, **kwargs)
+    return zeros(t.shape, requires_grad=requires_grad, device=device,dtype=dtype)
 
 def ones_like(t, requires_grad=False, **kwargs):
     """Creates a tensor of ones with the same shape as the input tensor."""
-    return ones(*t.shape, requires_grad=requires_grad, **kwargs)
+    return ones(t.shape, requires_grad=requires_grad, **kwargs)
 
 def empty_like(t, requires_grad=False, **kwargs):
     """Creates a tensor with uninitialized values and the same shape as the input tensor."""

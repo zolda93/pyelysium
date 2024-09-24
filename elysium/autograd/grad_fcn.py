@@ -6,9 +6,9 @@ import elysium as e
 
 def sum_to_shape(x,shape:Tuple[int,...])->'Tensor':
     device = 'gpu' if x.__class__ is cp.ndarray else 'cpu'
-    dims_to_sum = tuple(i for i, (s1, s2) in enumerate(zip(x.shape, shape)) if s1 != s2)
+    dims_to_sum = tuple(i for i, (s1, s2) in enumerate(zip(x.shape, shape)) if s1 != s2 )
     axis = tuple(range(x.ndim - len(shape))) if len(shape) < x.ndim else dims_to_sum
-    return e.Tensor(x.sum(axis=axis,keepdims=(len(dims_to_sum)>0)),device=device,dtype=x.dtype)
+    return e.Tensor(x.sum(axis=axis,keepdims=(len(x.shape) == shape)),device=device,dtype=x.dtype)
 class Neg(Function):
     @staticmethod
     def forward(ctx:Context,a:'Tensor')->'Tensor':

@@ -9,9 +9,9 @@ class LayerNorm:
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         if self.elementwise_affine:
-            self.weight = Parameter(empty((self.normalized_shape),device=device))
+            self.weight = Parameter(empty((self.normalized_shape))).to(device)
             if bias:
-                self.bias = Parameter(empty((self.normalized_shape),device=device))
+                self.bias = Parameter(empty((self.normalized_shape))).to(device)
             else:
                 self.bias = None
         else:

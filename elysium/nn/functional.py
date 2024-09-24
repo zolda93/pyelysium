@@ -26,7 +26,7 @@ def avg_pool2d(x,kernel_size,stride=None,padding=0,ceil_mode=False,count_include
 def linear(x, weight, bias=None):
     shape=tuple(i for i in range(len((1,) * (x.ndim - weight.ndim))))
     if bias is not None:
-        output = x@weight.transpose(1,0).unsqueeze(shape) + bias
+        output = x@weight.transpose(1,0).unsqueeze(shape) + bias if len(shape) > 0 else x@weight.transpose(1,0) + bias 
     else:
         output = x@(weight.transpose(1,0).unsqueeze(shape))
     return output
