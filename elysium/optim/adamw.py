@@ -24,12 +24,16 @@ class AdamW(Optim):
                 #if grad is None:continue  # Skip if no gradient is available
                 param_value *= (1 - self.lr * self.weight_decay )
                 # Update first and second moment estimates
-                self.m[param_name] = self.betas[0] * self.m[param_name] + (1 - self.betas[0]) * grad
-                self.v[param_name] = self.betas[1] * self.v[param_name] + (1 - self.betas[1]) * (grad ** 2)
+                self.m[param_name] *= self.betas[0]
+                self.m[param_name] *= ((1 - self.betas[0]) * grad)
+                #self.m[param_name] = self.betas[0] * self.m[param_name] + (1 - self.betas[0]) * grad
+                self.v[param_name] *= self.betas[1]
+                self.v[param_name] *=  ((1 - self.betas[1]) * (grad ** 2))
+                
                 m_hat = self.m[param_name] / (1 - self.betas[0]**self._step)
-                v_hat = self.v[param_name] / (1 - self.betas[1]**self._step)
-                if self.amsgrad:
-                    e.Tensor.maximum(self.v_hat[param_name], v_hat,out=self.v_hat[param_name])
-                    param_value -= self.lr* m_hat / (self.v_hat[param_name].sqrt() + self.eps)
-                else:
-                    param_value -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
+                v_hat = self.v[param_name].sqrt() / (1 - self.betas[1]**self._step).sqrt()
+                #if self.amsgrad:# trying to figure out why it doesnt work!!!
+                    #e.Tensor.maximum(self.v_hat[param_name], v_hat,out=self.v_hat[param_name])
+                    #param_value -= self.lr* m_hat / (self.v_hat[param_name].sqrt() + self.eps)
+                #else:
+                param_value -= self.lr * m_hat / (v_hat + self.eps)

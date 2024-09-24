@@ -174,6 +174,7 @@ class Tensor:
     def __isub__(self,other:'Tensor')->'Tensor':
         if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Sub.apply(self,other,inplace=True)
+        
     def __rsub__(self,other:'Tensor')->'Tensor':
         if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return sub(other,self)
