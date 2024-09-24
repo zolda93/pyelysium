@@ -12,7 +12,7 @@ class AdamW(Optim):
         self._step = 0
         # Initialize state variables for first and second moment estimates
         self.m = {param_name: zeros_like(param_value,device=param_value.device) for param_name, param_value in self.parameters}
-        self.v = {param_name: Tensor.zeros_like(param_value,device=param_value.device) for param_name, param_value in self.parameters}
+        self.v = {param_name: zeros_like(param_value,device=param_value.device) for param_name, param_value in self.parameters}
         if amsgrad:
             self.v_hat = {param_name:zeros_like(param_value,device=param_value.device) for param_name, param_value in self.parameters}
     def step(self):
