@@ -2,8 +2,8 @@ from elysium import cp,np
 from elysium import zeros_like,no_grad
 from .optimizer import Optim
 
-class AdamW(Optim):
-    def __init__(self, model, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.01, amsgrad=False):
+class Adam(Optim):
+    def __init__(self, model, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0, amsgrad=False):
         super().__init__(model)
         self.lr = lr
         self.betas = betas
@@ -21,7 +21,7 @@ class AdamW(Optim):
         for param_name, param_value in self.parameters:
             grad = param_value.grad.data
             if grad is None:continue  # Skip if no gradient is available
-            param_value.data *= (1 - self.lr * self.weight_decay )
+            if self.weight_decay != 0:grad +=  self.weight_decay * param_value.data
             # Update first and second moment estimates
             self.m[param_name].data *= self.betas[0]
             self.m[param_name].data += ((1 - self.betas[0]) * grad)
@@ -30,7 +30,7 @@ class AdamW(Optim):
             m_hat = self.m[param_name].data / (1 - self.betas[0]**self._step)
             v_hat = self.v[param_name].data
             if self.amsgrad:
-                (cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).maximum(self.v_hat[param_name].data, v_hat,out=self.v_hat[param_name].data)
+                (cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).maximum(self.v_hat[param_name].data, v_hat.data,out=self.v_hat[param_name].data)
                 param_value.data -= self.lr* m_hat / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(self.v_hat[param_name].data / (1 - self.betas[1]**self._step)) + self.eps)
             else:
                 param_value.data -= self.lr * m_hat / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(v_hat / (1 - self.betas[1]**self._step)) + self.eps)
