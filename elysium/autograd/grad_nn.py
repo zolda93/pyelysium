@@ -426,7 +426,7 @@ class BCELoss(Function):
         x,target = ctx.get_saved_tensors()
         xp = cp if x.device=='gpu' else np
         #grad_x = - (target.data / ctx.x_clamped) + (1 - target.data) / (1 - ctx.x_clamped)
-        grad_x = grad.data * (x.data-target.data) * xp.clip(1 / x.data, None, 1e12) * xp.clip(1 / (1-x.data), None, 1e12)
+        grad_x = grad.data * (x.data-target.data) * xp.clip(1 / (x.data + 1e-12), None, 1e12) * xp.clip(1 / (1-x.data), None, 1e12)
         if ctx.weight is not None:grad_x*=ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
