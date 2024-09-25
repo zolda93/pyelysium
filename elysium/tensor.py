@@ -166,6 +166,7 @@ class Tensor:
     def __iadd__(self,other:'Tesor')->'Tensor':
         if not isinstance(other,Tensor):other=Tensor(other,device=self.device,dtype=self.dtype)
         return Add.apply(self,other,inplace=True)
+        
     __radd__ = __add__
     add = __add__
     add_ = __iadd__
