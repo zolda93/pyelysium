@@ -12,28 +12,28 @@ except ImportError:
     cp = None
     CUPY_AVAILABLE = False
 
-if  CUPY_AVAILABLE:
-    cp.cuda.Device()
-    num_gpus = cp.cuda.runtime.getDeviceCount() # Get the number of available GPUs
-    for gpu_id in range(num_gpus):
-        with cp.cuda.Device(gpu_id):
+#if  CUPY_AVAILABLE:
+    #cp.cuda.Device()
+    #num_gpus = cp.cuda.runtime.getDeviceCount() # Get the number of available GPUs
+    #for gpu_id in range(num_gpus):
+        #with cp.cuda.Device(gpu_id):
             # Get basic memory properties
-            props = cp.cuda.runtime.getDeviceProperties(gpu_id)
-            total_memory_bytes = props['totalGlobalMem']
+            #props = cp.cuda.runtime.getDeviceProperties(gpu_id)
+            #total_memory_bytes = props['totalGlobalMem']
 
             # Calculate available memory (in bytes)
             # Note: There's no direct way to get truly "available" memory.
             # This is an approximation.
-            available_memory_bytes = total_memory_bytes
+            #available_memory_bytes = total_memory_bytes
 
-            try:
+            #try:
                 # Set memory pool limit for the current device
-                mempool = cp.get_default_memory_pool()
-                mempool.set_limit(available_memory_bytes)
+                #mempool = cp.get_default_memory_pool()
+                #mempool.set_limit(available_memory_bytes)
             
 
-            except Exception as e:
-                print(f"GPU {gpu_id}: Error setting memory pool limit: {e}")
+            #except Exception as e:
+                #print(f"GPU {gpu_id}: Error setting memory pool limit: {e}")
 
 
 class no_grad:
