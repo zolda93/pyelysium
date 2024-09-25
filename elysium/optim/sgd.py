@@ -1,4 +1,3 @@
-import elysium as e
 from elysium import zeros_like,no_grad
 from .optimizer import Optim
 class SGD(Optim):
@@ -16,21 +15,21 @@ class SGD(Optim):
         self.momentum_buffers = {param_name:zeros_like(param_value,device=param_value.device)
                                  for param_name, param_value in self.parameters if momentum > 0}
     def step(self):
-        with e.no_grad():
-            for param_name,param_value in self.parameters:
-                grad = param_value.grad
-                if self.weight_decay!=0:
-                    grad += self.weight_decay*param_value
-                if self.momentum!=0:
-                    self.momentum_buffers[param_name] = self.momentum*self.momentum_buffers[param_name] + (1 - self.dampening) * grad
-                    if self.nesterov:
-                        grad += self.momentum * self.momentum_buffers[param_name]
-                    else:
-                        grad= self.momentum_buffers[param_name]
-                if self.maximize:
-                    param_value += self.lr * grad
+        for param_name,param_value in self.parameters:
+            grad = param_value.grad.data
+            if grad is None:continue
+            if self.weight_decay!=0:
+                grad += self.weight_decay*param_value.data
+            if self.momentum!=0:
+                self.momentum_buffers[param_name].data = self.momentum*self.momentum_buffers[param_name].data + (1 - self.dampening) * grad
+                if self.nesterov:
+                    grad += self.momentum * self.momentum_buffers[param_name].data
                 else:
-                    param_value -= self.lr*grad
+                    grad= self.momentum_buffers[param_name]
+            if self.maximize:
+                param_value.data += self.lr * grad
+            else:
+                param_value.data -= self.lr*grad
 
 
 

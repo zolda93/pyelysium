@@ -1,4 +1,4 @@
-import elysium as e
+from elysium import cp,np
 from elysium import zeros_like,no_grad
 from .optimizer import Optim
 
@@ -17,23 +17,20 @@ class AdamW(Optim):
         if amsgrad:
             self.v_hat = {param_name:zeros_like(param_value,device=param_value.device) for param_name, param_value in self.parameters}
     def step(self):
-        with e.no_grad():
-            self._step += 1
-            for param_name, param_value in self.parameters:
-                grad = param_value.grad
-                #if grad is None:continue  # Skip if no gradient is available
-                param_value *= (1 - self.lr * self.weight_decay )
-                # Update first and second moment estimates
-                self.m[param_name] *= self.betas[0]
-                self.m[param_name] *= ((1 - self.betas[0]) * grad)
-                #self.m[param_name] = self.betas[0] * self.m[param_name] + (1 - self.betas[0]) * grad
-                self.v[param_name] *= self.betas[1]
-                self.v[param_name] *=  ((1 - self.betas[1]) * (grad ** 2))
-                
-                m_hat = self.m[param_name] / (1 - self.betas[0]**self._step)
-                v_hat = self.v[param_name] / (1 - self.betas[1]**self._step)
-                #if self.amsgrad:# trying to figure out why it doesnt work!!!
-                    #e.Tensor.maximum(self.v_hat[param_name], v_hat,out=self.v_hat[param_name])
-                    #param_value -= self.lr* m_hat / (self.v_hat[param_name].sqrt() + self.eps)
-                #else:
-                param_value -= self.lr * m_hat / (v_hat.sqrt() + self.eps)
+        self._step += 1
+        for param_name, param_value in self.parameters:
+            grad = param_value.grad.data
+            if grad is None:continue  # Skip if no gradient is available
+            param_value.data *= (1 - self.lr * self.weight_decay )
+            # Update first and second moment estimates
+            self.m[param_name].data *= self.betas[0]
+            self.m[param_name].data += ((1 - self.betas[0]) * grad)
+            self.v[param_name].data *= self.betas[1]
+            self.v[param_name].data +=  ((1 - self.betas[1]) * (grad ** 2))
+            m_hat = self.m[param_name].data / (1 - self.betas[0]**self._step)
+            v_hat = self.v[param_name].data
+            if self.amsgrad:# trying to figure out why it doesnt work!!!
+                (cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).maximum(self.v_hat[param_name].data, v_hat.data,out=self.v_hat[param_name].data)
+                param_value.data -= self.lr* m_hat / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(self.v_hat[param_name].data / (1 - self.betas[1]**self._step)) + self.eps)
+            else:
+                param_value.data -= self.lr * m_hat / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(v_hat.data / (1 - self.betas[1]**self._step)) + self.eps)
