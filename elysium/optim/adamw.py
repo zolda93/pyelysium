@@ -29,7 +29,7 @@ class AdamW(Optim):
             self.v[param_name].data +=  ((1 - self.betas[1]) * (grad ** 2))
             m_hat = self.m[param_name].data / (1 - self.betas[0]**self._step)
             v_hat = self.v[param_name].data
-            if self.amsgrad:# trying to figure out why it doesnt work!!!
+            if self.amsgrad:
                 (cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).maximum(self.v_hat[param_name].data, v_hat.data,out=self.v_hat[param_name].data)
                 param_value.data -= self.lr* m_hat / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(self.v_hat[param_name].data / (1 - self.betas[1]**self._step)) + self.eps)
             else:
