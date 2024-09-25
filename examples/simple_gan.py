@@ -75,21 +75,20 @@ class GAN:
         self.Goptimizer.step()
         return error
     def train_gan(self):
-      num_epochs = 20
-      log = Report(num_epochs)
-      for e in range(num_epochs):
-        N = len(self.data_loader)
-        for idx,(images,_) in enumerate(self.data_loader):
-          real = elysium.tensor(images.view(len(images),-1).numpy())
-          fake = self.generator(elysium.randn((len(real),100)))
-          fake = fake.detach()
-
-          d_loss = self.train_discriminator(real,fake)
-          fake = self.generator(elysium.randn((len(real),100)))
-          g_loss = self.train_generator(fake,real)
-          log.record(e+(1+idx)/N, d_loss=d_loss.item(), g_loss=g_loss.item(), end='\r')
-        log.report_avgs(e+1)
-      log.plot_epochs(['d_loss', 'g_loss'])
+        num_epochs = 20
+        log = Report(num_epochs)
+        for e in range(num_epochs):
+            N = len(self.data_loader)
+            for idx,(images,_) in enumerate(self.data_loader):
+                real = elysium.tensor(images.view(len(images),-1).numpy())
+                fake = self.generator(elysium.randn((len(real),100)))
+                fake = fake.detach()
+                d_loss = self.train_discriminator(real,fake)
+                fake = self.generator(elysium.randn((len(real),100)))
+                g_loss = self.train_generator(fake,real)
+                log.record(e+(1+idx)/N, d_loss=d_loss.item(), g_loss=g_loss.item(), end='\r')
+            log.report_avgs(e+1)
+        log.plot_epochs(['d_loss', 'g_loss'])
 
 
 if __name__ == '__main__':

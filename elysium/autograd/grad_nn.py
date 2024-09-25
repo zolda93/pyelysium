@@ -406,11 +406,6 @@ class BCELoss(Function):
         assert x.shape == target.shape ,f"target shape {target.shape} must match input shape {x.shape}"
         ctx.save_for_backward(x,target)
         xp = cp if x.device=='gpu' else np
-        # Clamp input to prevent log(0) issues and to ensure numerical stability
-        #eps = 1e-12
-        #x_clamped = xp.clip(x.data, eps, 1.0 - eps)
-        # Compute the binary cross entropy loss
-        #loss = - (target.data * xp.log(x_clamped) + (1 - target.data) * xp.log(1 - x_clamped))
         loss =  -(target.data * xp.clip(xp.log(x.data), -100, None) + (1 - target.data) * xp.clip(xp.log(1 - x.data), -100, None))
         if weight is not None:loss*=weight.data
         if reduction=='mean':
@@ -425,7 +420,6 @@ class BCELoss(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x,target = ctx.get_saved_tensors()
         xp = cp if x.device=='gpu' else np
-        #grad_x = - (target.data / ctx.x_clamped) + (1 - target.data) / (1 - ctx.x_clamped)
         grad_x = grad.data * (x.data-target.data) * xp.clip(1 / (x.data + 1e-12), None, 1e12) * xp.clip(1 / (1-x.data), None, 1e12)
         if ctx.weight is not None:grad_x*=ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
