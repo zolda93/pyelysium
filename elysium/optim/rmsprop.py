@@ -34,7 +34,6 @@ class RMSprop(Optim):
             if self.momentum > 0:
                 self.momentum_buffers[param_name].data *= self.momentum
                 self.momentum_buffers[param_name].data += grad / ((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np).sqrt(avg) + self.eps)
-                #buf = self.momentum * buf + grad / (np.sqrt(avg) + self.eps)
                 param_value.data -= self.lr * self.momentum_buffers[param_name].data
             else:
                 param_value -= self.lr * grad / (((cp if (cp is not None and param_value.data.__class__ is cp.ndarray ) else np)).sqrt(avg) + self.eps)
