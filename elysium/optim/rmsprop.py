@@ -22,14 +22,9 @@ class RMSprop(Optim):
             if grad is None:continue  # Skip if no gradient is available
             # Apply weight decay if specified
             if self.weight_decay != 0:grad += self.weight_decay * param_value.data
-            #square_avg = self.square_avg[param_name]
-            #square_avg = self.alpha * square_avg + (1 - self.alpha) * (grad ** 2)
             self.square_avg[param_name].data *= self.alpha
             self.square_avg[param_name] += (1 - self.alpha) * (grad ** 2)
             if self.centered:
-                #grad_avg = self.grad_avg[param_name]
-                #grad_avg = self.alpha * grad_avg + (1 - self.alpha) * grad
-                #avg = square_avg - grad_avg ** 2
                 self.grad_avg[param_name].data *= self.alpha
                 self.grad_avg[param_name].data += (1 - self.alpha) * grad
                 avg = self.square_avg[param_name].data - self.grad_avg[param_name].data ** 2
