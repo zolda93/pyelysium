@@ -121,9 +121,9 @@ class Tensor:
                 for i,grad in enumerate(grad_inputs):
                     if grad is not None:
                         if t._ctx.saved_tensors[i].grad is None:
-                            t._ctx.saved_tensors[i].grad = grad
+                            t._ctx.saved_tensors[i].grad.data = grad.data
                         else:
-                            t._ctx.saved_tensors[i].grad +=grad
+                            t._ctx.saved_tensors[i].grad.data +=grad.data
                 del t._ctx
             
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
