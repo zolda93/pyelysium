@@ -406,7 +406,7 @@ class BCELoss(Function):
         assert x.shape == target.shape ,f"target shape {target.shape} must match input shape {x.shape}"
         ctx.save_for_backward(x,target)
         xp = cp if x.device=='gpu' else np
-        loss =  -(target.data * xp.clip(xp.log(x.data), -100, None) + (1 - target.data) * xp.clip(xp.log(1 - x.data), -100, None))
+        loss =  -(target.data * xp.clip(xp.log(x.data + 1e-12), -100, None) + (1 - target.data) * xp.clip(xp.log(1 - x.data + 1e-12), -100, None))
         if weight is not None:loss*=weight.data
         if reduction=='mean':
             loss=loss.mean()
