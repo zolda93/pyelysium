@@ -79,10 +79,14 @@ class Tensor:
     def cuda(self)->'Tensor':
         if self.device == 'gpu':return self
         if cp is None:raise RuntimeError('Cupy is not available for GPU operations.')
-        return Tensor(cp.array(self.data),requires_grad=self.requires_grad,device='gpu',dtype=self.data.dtype)
+        self.data = cp.array(self.data,dtype=self.data.dtype)
+        self.device= 'gpu'
+        return self
     def cpu(self)->'Tensor':
         if self.device == 'cpu':return self
-        return Tensor(self.data.get(),requires_grad=self.requires_grad,device='cpu',dtype=self.data.dtype)
+        self.data = self.data.get()
+        self.device='cpu'
+        return self
     def detach(self)->'Tensor':return Tensor(self.data,requires_grad=False,device=self.device,dtype=self.data.dtype)
     def zero_grad(self)->None:
         if self.grad is not None:

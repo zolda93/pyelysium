@@ -274,6 +274,8 @@ class Sigmoid(Function):
         xp = cp if x.device == 'gpu' else np
         #out = xp.divide(1,xp.add(1,xp.exp(-x.data),dtype=x.dtype),dtype=x.dtype)
         out = xp.where(x.data >= 0, 1 / (1 + xp.exp(-x.data)), xp.exp(x.data) / (xp.exp(x.data) + 1)) # to avoid overflow of exp
+        # https://stackoverflow.com/questions/51976461/optimal-way-of-defining-a-numerically-stable-sigmoid-function-for-a-list-in-pyth
+        #out = xp.piecewise(x.data, [x.data > 0], [lambda i: 1 / (1 + xp.exp(-i)), lambda i: xp.exp(i) / (1 + xp.exp(i))]) # two times faster with silent warning
         ctx.out,ctx.device= out,x.device
         return e.Tensor(out,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod

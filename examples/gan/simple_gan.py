@@ -22,26 +22,26 @@ training_data = MNIST('./mnist/',transform=img_transform,train=True,download=Tru
 class Discriminator:
     def __init__(self):
         self.model = nn.Sequential(
-            nn.Linear(28*28,1024),
+            nn.Linear(28*28,1024,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(1024,512),
+            nn.Linear(1024,512,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(512,256),
+            nn.Linear(512,256,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(256,1),
+            nn.Linear(256,1,device='gpu'),
             nn.Sigmoid())
     def __call__(self,x):
         return self.model(x)
 class Generator:
     def __init__(self):
         self.model = nn.Sequential(
-            nn.Linear(100,256),
+            nn.Linear(100,256,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(256,512),
+            nn.Linear(256,512,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(512,1024),
+            nn.Linear(512,1024,device='gpu'),
             nn.LeakyReLU(0.2),
-            nn.Linear(1024,28*28),
+            nn.Linear(1024,28*28,device='gpu'),
             nn.Tanh(),)
     def __call__(self,x):
         return self.model(x)
@@ -58,11 +58,11 @@ class GAN:
         self.Doptimizer.zero_grad()
         #train discriminator with real data labele as one
         pred_real = self.discriminator(real_data)
-        error_real = self.loss(pred_real,elysium.ones((len(real_data),1)))
+        error_real = self.loss(pred_real,elysium.ones((len(real_data),1)).cuda())
         error_real.backward()
         #train discriminator with fake data labeled as zero
         pred_fake = self.discriminator(fake_data)
-        error_fake = self.loss(pred_fake,elysium.zeros((len(fake_data),1)))
+        error_fake = self.loss(pred_fake,elysium.zeros((len(fake_data),1)).cuda())
         error_fake.backward()
         #update
         self.Doptimizer.step()
@@ -70,7 +70,7 @@ class GAN:
     def train_generator(self,fake_data,real_data):
         self.Goptimizer.zero_grad()
         pred = self.discriminator(fake_data)
-        error = self.loss(pred,elysium.ones((len(real_data),1)))
+        error = self.loss(pred,elysium.ones((len(real_data),1)).cuda())
         error.backward()
         self.Goptimizer.step()
         return error
@@ -80,11 +80,11 @@ class GAN:
         for e in range(num_epochs):
             N = len(self.data_loader)
             for idx,(images,_) in enumerate(self.data_loader):
-                real = elysium.tensor(images.view(len(images),-1).numpy())
-                fake = self.generator(elysium.randn((len(real),100)))
+                real = elysium.tensor(images.view(len(images),-1).numpy()).cuda()
+                fake = self.generator(elysium.randn((len(real),100)).cuda())
                 fake = fake.detach()
                 d_loss = self.train_discriminator(real,fake)
-                fake = self.generator(elysium.randn((len(real),100)))
+                fake = self.generator(elysium.randn((len(real),100)).cuda())
                 g_loss = self.train_generator(fake,real)
                 log.record(e+(1+idx)/N, d_loss=d_loss.item(), g_loss=g_loss.item(), end='\r')
             log.report_avgs(e+1)
@@ -94,9 +94,18 @@ class GAN:
 if __name__ == '__main__':
     gan = GAN(Discriminator(),Generator())
     gan.train_gan()
-    z = elysium.tensor(torch.randn(64, 100).numpy())
+    z = elysium.tensor(torch.randn(64, 100).numpy()).to('gpu')
     sample_images = gan.generator(z)
     sample_images = torch.tensor(sample_images.detach().numpy().reshape(64, 1, 28, 28))
     grid = make_grid(sample_images, nrow=8, normalize=True)
     from torch_snippets import *
     show(grid.cpu().detach().permute(1,2,0), sz=5)
+    import torchvision.utils as vutils
+    from PIL import Image
+    grid = vutils.make_grid(sample_images, nrow=8, padding=2, normalize=True)
+    grid_np = grid.mul(255).byte().cpu().numpy().transpose((1, 2, 0))
+    grid_img = Image.fromarray(grid_np)
+    grid_img.save("sample_images_grid.png")
+
+
+

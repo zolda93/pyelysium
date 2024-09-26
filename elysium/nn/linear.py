@@ -10,6 +10,8 @@ class Linear:
         self.weight = Parameter(zeros((out_features,in_features))).to(device)
         self.bias = Parameter(zeros(out_features)).to(device) if bias else None
         self.reset_parameters()
+        #self.weight = self.weight.to(device)i
+        #self.bias = self.bias.to(device) if self.bias is not None else None
     def reset_parameters(self):
         init.kaiming_uniform_(self.weight,a=math.sqrt(5))
         if self.bias is not None:
