@@ -127,7 +127,7 @@ class Tensor:
                             t._ctx.saved_tensors[i].grad = grad
                         else:
                             t._ctx.saved_tensors[i].grad.data +=grad.data
-                del t._ctx
+                t._ctx=None
     def size(self,dim:Optional[int]=None):return self.shape if dim is None else self.shape[dim]
     def sqrt(self)->'Tensor':return Sqrt.apply(self)
     def exp(self)->'Tensor':return Exp.apply(self)

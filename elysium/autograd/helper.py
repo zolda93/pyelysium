@@ -220,30 +220,37 @@ def sliding_window_view_pool(x,kernel_size,stride,dilation,padding=(0,0),ceil_mo
 
     windows = xp.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
     return windows, padded
+
 def maxpool2d(x,kernel_size,stride,dilation,padding,ceil_mode):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
     low_dim = False
     if x.ndim == 3:
         low_dim = True
         x = x[None]
-    windows = sliding_window_view_pool(x,kernel_size,stride,dilation,padding,ceil_mode,val=np.inf)[0]
+    windows,padded = sliding_window_view_pool(x,kernel_size,stride,dilation,padding,ceil_mode,val=xp.NINF)
     batch_size,h,w,channels,kh,kw = windows.shape
-    max_pooled = xp.max(windows, axis=(4, 5)).transpose(0,3,1,2)
-    max_positions = xp.argmax(windows.reshape(batch_size, channels, h,w, -1), axis=-1)
+    max_pooled = xp.nanmax(windows, axis=(4, 5)).transpose(0,3,1,2)
+    max_positions = xp.nanargmax(windows.transpose(0,3,1,2,4,5).reshape(batch_size, channels, h,w,-1), axis=-1)
     max_positions = xp.unravel_index(max_positions, (kernel_size[0], kernel_size[1]))
     if low_dim:max_pooled = max_pooled[0]
     return max_pooled, max_positions
 def maxpool2d_backward(x, grad, pos, kernel_size, stride, padding, dilation, ceil_mode):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    if xp is cp:
+        import cupyx
+        add_at = cupyx.scatter_add
+    else:
+        add_at = np.add.at
     low_dim_flag = False
     if x.ndim == 3:
         low_dim_flag = True
         x = x[None]
     x_grad = xp.zeros_like(x)
     idx2, idx1_m = pos
-    expanded, padded = sliding_window_view_pool(x_grad, kernel_size, stride, dilation, padding, ceil_mode, val=np.NINF)
+    expanded, padded = sliding_window_view_pool(x_grad, kernel_size, stride, dilation, padding, ceil_mode, val=0.0)
+    expanded = expanded.transpose(0,3,1,2,4,5)
     ax0, ax1, ax2, ax3 = xp.indices((expanded.shape[:-2]))
-    expanded[ax0, ax1, ax2, ax3, idx2, idx1_m] = xp.moveaxis(grad, -3, -1)
+    add_at(expanded,(ax0,ax1,ax2,ax3,idx2,idx1_m),grad)
     hp, wp = padding
     h, w = x_grad.shape[-2:]
     x_grad = padded[..., hp:(hp + h), wp:(wp + w)]
@@ -314,6 +321,19 @@ def col2im(xp,col,input_shape,kernel_size,stride,padding):
                 x[:, :, j:j_lim:sh, i:i_lim:sw] += col[:, :, j, i, :, :]
         x = x[:, :, ph:H + ph, pw:W + pw]
     return x
+
+def ___maxpool2d_backward(x, grad, pos, kernel_size, stride, padding, dilation, ceil_mode):
+    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
+    n,c,h_out,w_out = grad.shape
+    _,_,h,w = x.shape
+    kh,kw = kernel_size
+    x_grad = xp.zeros((n*c*h_out*w_out*kh*kw))
+    indexes = pos.ravel() + xp.arange(0,pos.size*kh*kw,kh*kw)
+    print(indexes.shape)
+    x_grad[indexes] = grad.ravel()
+    x_grad = x_grad.reshape(n, c, out_h, out_w, kh, kw).transpose(0, 3, 4, 5, 1, 2)
+    return col2im(xp,x_grad,(n,c,h,w),kernel_size,stride,padding)
+    
 def avgpool2d_backward(x,grad,divisor,kernel_size,stride,padding,ceil_mode=False):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
     if isinstance(divisor,xp.ndarray):divisor = divisor.transpose(0,3,1,2)

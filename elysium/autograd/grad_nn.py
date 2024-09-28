@@ -8,7 +8,7 @@ class Convolution(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',w:'Tensor',bias:Union['Tensor',None]=None,stride:Optional[Union[Tuple[int,...],int]]=1,padding:Optional[Union[Tuple[int,...],int,str]]=0,dilation:Optional[Union[Tuple[int,...],int]]=1,groups:Optional[int]=1,padding_mode:Optional[str]='zeros')->'Tensor':
         if x.data.__class__ is not w.data.__class__:
-            raise RuntimeError(f'Input data type ({x.data._class__}) and weight data type ({w.data.__class__}) should be the same')
+            raise RuntimeError(f'Input data type ({x.data.__class__}) and weight data type ({w.data.__class__}) should be the same')
         if bias is not None and x.data.__class__ is not bias.data.__class__:
             raise RuntimeError(f'Input data type ({x.data.__class__}) and bias data type ({bias.data.__class__}) should be the same')
         if x.ndim != 4:raise RuntimeError(f'Expected 3D (unbatched) or 4D (batched) input to conv2d, 'f'but got input of size: {x.shape}')
@@ -398,7 +398,7 @@ class MSELoss(Function):
         x,target = ctx.get_saved_tensors()
         grad_x = 2 * grad.data * (x.data - target.data)
         xp = cp if x.device=='gpu' else np
-        if ctx.reduction == 'mean':grad_x = xp.divide(grad_x,x.data.size)
+        if ctx.reduction == 'mean':grad_x /=x.data.size
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
 class BCELoss(Function):
     @staticmethod
