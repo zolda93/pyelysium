@@ -320,20 +320,7 @@ def col2im(xp,col,input_shape,kernel_size,stride,padding):
                 i_lim = i + sw*OW
                 x[:, :, j:j_lim:sh, i:i_lim:sw] += col[:, :, j, i, :, :]
         x = x[:, :, ph:H + ph, pw:W + pw]
-    return x
-
-def ___maxpool2d_backward(x, grad, pos, kernel_size, stride, padding, dilation, ceil_mode):
-    xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-    n,c,h_out,w_out = grad.shape
-    _,_,h,w = x.shape
-    kh,kw = kernel_size
-    x_grad = xp.zeros((n*c*h_out*w_out*kh*kw))
-    indexes = pos.ravel() + xp.arange(0,pos.size*kh*kw,kh*kw)
-    print(indexes.shape)
-    x_grad[indexes] = grad.ravel()
-    x_grad = x_grad.reshape(n, c, out_h, out_w, kh, kw).transpose(0, 3, 4, 5, 1, 2)
-    return col2im(xp,x_grad,(n,c,h,w),kernel_size,stride,padding)
-    
+    return x    
 def avgpool2d_backward(x,grad,divisor,kernel_size,stride,padding,ceil_mode=False):
     xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
     if isinstance(divisor,xp.ndarray):divisor = divisor.transpose(0,3,1,2)
