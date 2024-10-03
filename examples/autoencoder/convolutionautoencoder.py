@@ -14,7 +14,6 @@ training_data = MNIST('./mnist/',transform=image_transform,train=True,download=F
 testing_data = MNIST('./mnist/',transform=image_transform,train=False,download=False)
 class ConvAutoEncoder:
     def __init__(self):
-        self.norm = []
         self.encoder = nn.Sequential(
                 nn.Conv2d(1,32,3,stride=3,padding=1,device='gpu'),
                 nn.ReLU(),
