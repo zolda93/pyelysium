@@ -2,14 +2,12 @@ import math
 from elysium import Tensor,cp,np
 from .parameter import *
 def _no_grad_uniform_(tensor, a, b):
-    xd0 = tensor.data
-    xp = cp if (cp is not None and xd0.__class__ is cp.ndarray) else np
-    xd0[...] = xp.random.uniform(low=a, high=b, size=xd0.shape).astype(xd0.dtype)
+    xp = cp if (cp is not None and tensor.data.__class__ is cp.ndarray) else np
+    tensor.data[...] = xp.random.uniform(low=a, high=b, size=tensor.shape).astype(tensor.dtype)
     return tensor
 def _no_grad_normal_(tensor, mean, std):
-    xd0 = tensor.data
-    xp = cp if (cp is not None and xd0.__class__ is cp.ndarray) else np
-    xd0[...] = xp.random.normal(loc=mean, scale=std, size=xd0.shape).astype(xd0.dtype)
+    xp = cp if (cp is not None and tensor.__class__ is cp.ndarray) else np
+    tensor.data[...] = xp.random.normal(loc=mean, scale=std, size=tensor.shape).astype(tensor.dtype)
     return tensor
 def _no_grad_fill_(tensor, val):
     tensor.data.fill(val)
@@ -25,8 +23,7 @@ def _calculate_fan_in_and_fan_out(tensor):
     num_input_fmaps = tensor.shape[1]
     num_output_fmaps = tensor.shape[0]
     receptive_field_size = 1
-    if tensor.ndim > 2:
-        receptive_field_size = tensor.data[0][0].size
+    receptive_field_size = tensor.data[0][0].size
     fan_in = num_input_fmaps * receptive_field_size
     fan_out = num_output_fmaps * receptive_field_size
     return fan_in, fan_out

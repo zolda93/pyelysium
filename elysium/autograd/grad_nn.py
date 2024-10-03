@@ -4,9 +4,46 @@ from .helper import *
 from elysium import np,cp
 import elysium as e
 
+class Dilate(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',dilation:Tuple[int])->'Tensor':
+        assert len(dilation) == 2,f'except tuple of length = 2,got {len(dilation)}'
+        assert len(x.shape) >= 2,f'except input of shape greater or equal 2 got {len(x.shape)}'
+        ctx.save_for_backward(x)
+        ctx.dilation = dilation
+        dh,dw = dilation
+        xp = cp if (cp is not None and x.data.__class__ is cp.ndarray) else np
+        hk,wk = x.shape[-2:]
+        dilated = xp.zeros((*x.shape[:-2], (hk - 1) * dh + 1, (wk - 1) * dw + 1), dtype=x.dtype)
+        dilated[...,::dh,::dw] = x.data
+        return e.Tensor(dilated,requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        dh,dw = ctx.dilation
+        return (e.Tensor(grad.data[...,::dh,::dw],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
+class Flip(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',axis=None)->'Tensor':
+        ctx.save_for_backward(x)
+        xp = cp if (cp is not None and x.data.__class__ is cp.ndarray) else np
+        axis = tuple(ax if ax >= 0 else x.ndim + ax for ax in axis)
+        ctx.axis = axis
+        return e.Tensor(xp.flip(x.data,axis=axis),requires_grad=x.requires_grad,device=x.device,dtype=x.dtype)
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x = ctx.get_saved_tensors()[0]
+        xp = cp if (cp is not None and x.data.__class__ is cp.ndarray) else np
+        return (e.Tensor(xp.flip(grad.data,axis=ctx.axis),device=x.device,dtype=x.dtype) if x.requires_grad else None,)
 class Convolution(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',w:'Tensor',bias:Union['Tensor',None]=None,stride:Optional[Union[Tuple[int,...],int]]=1,padding:Optional[Union[Tuple[int,...],int,str]]=0,dilation:Optional[Union[Tuple[int,...],int]]=1,groups:Optional[int]=1,padding_mode:Optional[str]='zeros')->'Tensor':
+    def forward(ctx:Context,
+            x:'Tensor',
+            w:'Tensor',
+            bias:Union['Tensor',None]=None,
+            stride:Optional[Union[Tuple[int,...],int]]=1,
+            dilation:Optional[Union[Tuple[int,...],int]]=1,
+            groups:Optional[int]=1)->'Tensor':
         if x.data.__class__ is not w.data.__class__:
             raise RuntimeError(f'Input data type ({x.data.__class__}) and weight data type ({w.data.__class__}) should be the same')
         if bias is not None and x.data.__class__ is not bias.data.__class__:
@@ -21,69 +58,26 @@ class Convolution(Function):
         else:
             ctx.save_for_backward(x,w)
         bias = bias.data if bias is not None else None
-        output,x_padded,extra_padding = conv2d(x.data,w.data,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode)
-        ctx.x_padded,ctx.extra_padding=x_padded,extra_padding
-        ctx.stride,ctx.padding,ctx.dilation,ctx.groups,ctx.padding_mode=stride,padding,dilation,groups,padding_mode
+        output = conv2d(x.data,w.data,bias=bias,stride=stride,dilation=dilation,groups=groups,transpose=False) + bias.reshape(1,-1,1,1) if bias is not None else 0.
+        ctx.stride,ctx.dilation,ctx.groups=stride,dilation,groups
         requires_grad=x.requires_grad|w.requires_grad
         return e.Tensor(output,requires_grad=requires_grad,device=x.device,dtype=x.dtype)
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        #x,w,bias=ctx.get_saved_tensors()
         ts = ctx.get_saved_tensors()
         if len(ts) == 3:
             x,w,bias = ts
         else:
             x,w,bias = ts[0],ts[1],None
-        stride,padding,dilation,groups,padding_mode=ctx.stride,ctx.padding,ctx.dilation,ctx.groups,ctx.padding_mode
-        x_padded,extra_padding=ctx.x_padded,ctx.extra_padding
-        if x.requires_grad:x_grad=conv_transpose2d(grad.data,w.data,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode,input=x.data,extra_padding=extra_padding)
-        if w.requires_grad:w_grad=conv2d_backward_w(x_padded,grad.data, stride, padding, dilation, groups, w.data,padding_mode=padding_mode)[0]
+        stride,dilation,groups=ctx.stride,ctx.dilation,ctx.groups
+        if x.requires_grad:x_grad=conv2d(grad.data,w.data,stride=stride,dilation=dilation,groups=groups,transpose=True)
+        if w.requires_grad:w_grad=conv2d_backward_w(x.data,grad.data, stride,dilation, groups, w.data)
         if bias is not None and bias.requires_grad:b_grad=grad.data.sum((0,2,3))
         x_grad = e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x.requires_grad else None
         w_grad = e.Tensor(w_grad,device=w.device,dtype=w.dtype) if w.requires_grad else None
         b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
         return (x_grad,w_grad,b_grad)
-class TransposedConvolution(Function):
-    @staticmethod
-    def forward(ctx:Context,x:'Tensor',w:'Tensor',bias:Union['Tensor',None]=None,stride:Optional[Union[Tuple[int,...],int]]=1,padding:Optional[Union[Tuple[int,...],int]]=0,dilation:Optional[Union[Tuple[int,...],int]]=1,output_padding:Optional[Union[Tuple[int,...],int]]=0,groups:Optional[int]=1,padding_mode:Optional[str]='zeros')->'Tensor':
-        if x.data.__class__ is not w.data.__class__:
-            raise RuntimeError(f'Input data type ({x.data.__class__}) and weight data type ({w.data.__class__}) should be the same')
-        if bias is not None and x.data.__class__ is not bias.data.__class__:
-            raise RuntimeError(f'Input data type ({x.data.__class__}) and bias data type ({bias.data.__class__}) should be the same')
-        if x.ndim != 4:
-            raise RuntimeError(f'Expected 3D (unbatched) or 4D (batched) input to conv_transpose2d, '
-                               f'but got input of size: {x.shape}')
-        if w.shape[-4] != x.shape[-3]:
-            raise RuntimeError(f'Given transposed=1, weight of size {w.shape}, '
-                               f'expected input {x.shape} to have {w.shape[-4]} channels, '
-                               f'but got {x.shape[-3]} channels instead')
-        #ctx.save_for_backward(x,w,bias)
-        if bias is not None:
-            ctx.save_for_backward(x,w,bias)
-        else:
-            ctx.save_for_backward(x,w)
-        bias = bias.data if bias is not None else None
-        if padding_mode != 'zeros':raise ValueError('Only "zeros" padding mode is supported for ConvTranspose2d')
-        output= conv_transpose2d(x.data,w.data,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,output_padding=output_padding)
-        ctx.stride,ctx.padding,ctx.dilation,ctx.groups=stride,padding,dilation,groups
-        requires_grad=x.requires_grad|w.requires_grad
-        return e.Tensor(output,requires_grad=requires_grad,device=x.device,dtype=x.dtype)
-    @staticmethod
-    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
-        #x,w,bias=ctx.get_saved_tensors()
-        ts = ctx.get_saved_tensors()
-        if len(ts) == 3:
-            x,w,bias = ts
-        else:
-            x,w,bias = ts[0],ts[1],None
-        stride,padding,dilation,groups=ctx.stride,ctx.padding,ctx.dilation,ctx.groups
-        w_grad,grad_padded = conv2d_backward_w(grad.data,x.data ,stride,padding,dilation,groups,w.data,is_transpose=True)
-        if x.requires_grad:x_grad=conv2d(grad_padded,w.data,stride=stride,padding=(0,0),dilation=dilation,groups=groups)[0]
-        if bias is not None and bias.requires_grad:b_grad=grad.data.sum((0,2,3))
-        x_grad=e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x.requires_grad else None
-        w_grad = e.Tensor(w_grad,device=w.device,dtype=w.dtype) if w.requires_grad else None
-        b_grad = e.Tensor(b_grad,device=bias.device,dtype=bias.dtype) if bias is not None and bias.requires_grad else None
-        return (x_grad,w_grad,b_grad)
+
 class MaxPool2DWithIndices(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor',kernel_size:Union[int, Tuple[int, int]],stride:Union[int, Tuple[int, int]]=None,padding:Union[int, Tuple[int, int]]=0,dilation:Union[int, Tuple[int, int]]=1,
@@ -115,11 +109,11 @@ class AvgPool2d(Function):
         return (e.Tensor(x_grad,device=x.device,dtype=x.dtype) if x_grad is not None else None,)
 class ConstantPad2d(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',padding,val)->'Tensor':
+    def forward(ctx:Context,x:'Tensor',padding,val,stride=None, dilation=None, kernel_size=None)->'Tensor':
         xp = cp if x.device=='gpu' else np
         ctx.save_for_backward(x)
-        left,right,top,bottom = convert_padding(padding)
-        ctx.padding=padding
+        left,right,top,bottom = calculate_padding(x,padding, stride=stride, dilation=dilation, kernel_size=kernel_size)
+        ctx.left,ctx.right,ctx.top,ctx.bottom = left,right,top,bottom
         if x.ndim == 3:
             out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='constant',constant_values=val)[0]
         else:
@@ -128,17 +122,17 @@ class ConstantPad2d(Function):
     @staticmethod
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x = ctx.get_saved_tensors()[0]
-        left,right,top,bottom=convert_padding(ctx.padding)
+        left,right,top,bottom=ctx.left,ctx.right,ctx.top,ctx.bottom 
         h_in = grad.shape[-2] - top - bottom
         w_in = grad.shape[-1] - left - right
         return  (e.Tensor(grad.data[..., top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
 class ReflectionPad2d(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+    def forward(ctx:Context,x:'Tensor',padding,stride=None, dilation=None, kernel_size=None)->'Tensor':
         xp = cp if x.device=='gpu' else np
         ctx.save_for_backward(x)
-        ctx.padding=padding
-        left,right,top,bottom=convert_padding(padding)
+        left,right,top,bottom=calculate_padding(x,padding, stride=stride, dilation=dilation, kernel_size=kernel_size)
+        ctx.left,ctx.right,ctx.top,ctx.bottom = left,right,top,bottom
         if x.ndim == 3:
             out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='reflect')[0]
         else:
@@ -148,7 +142,7 @@ class ReflectionPad2d(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x=ctx.get_saved_tensors()[0]
         xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-        left,right,top,bottom=convert_padding(ctx.padding)
+        left,right,top,bottom=ctx.left,ctx.right,ctx.top,ctx.bottom
         h_in = grad.shape[-2] - top - bottom
         w_in = grad.shape[-1] - left - right
         grad=grad.data
@@ -159,11 +153,11 @@ class ReflectionPad2d(Function):
         return (e.Tensor(grad[...,top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
 class CircularPad2d(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+    def forward(ctx:Context,x:'Tensor',padding,stride=None, dilation=None, kernel_size=None)->'Tensor':
         xp = cp if x.device=='gpu' else np
         ctx.save_for_backward(x)
-        ctx.padding=padding
-        left,right,top,bottom=convert_padding(padding)
+        left,right,top,bottom=calculate_padding(x,padding, stride=stride, dilation=dilation, kernel_size=kernel_size)
+        ctx.left,ctx.right,ctx.top,ctx.bottom = left,right,top,bottom
         if x.ndim == 3:
             out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='wrap')[0]
         else:
@@ -173,7 +167,7 @@ class CircularPad2d(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x=ctx.get_saved_tensors()[0]
         xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-        left,right,top,bottom=convert_padding(ctx.padding)
+        left,right,top,bottom=ctx.left,ctx.right,ctx.top,ctx.bottom
         h_in = grad.shape[-2] - top - bottom
         w_in = grad.shape[-1] - left - right
         grad=grad.data
@@ -194,11 +188,11 @@ class CircularPad2d(Function):
         return (e.Tensor(grad[:, :, top:top + h_in, left:left + w_in],device=x.device,dtype=x.dtype) if x.requires_grad else None,)
 class ReplicationPad2d(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',padding)->'Tensor':
+    def forward(ctx:Context,x:'Tensor',padding,stride=None, dilation=None, kernel_size=None)->'Tensor':
         xp = cp if x.device=='gpu' else np
         ctx.save_for_backward(x)
-        ctx.padding=padding
-        left,right,top,bottom=convert_padding(padding)
+        left,right,top,bottom=calculate_padding(x,padding, stride=stride, dilation=dilation, kernel_size=kernel_size)
+        ctx.left,ctx.right,ctx.top,ctx.bottom = left,right,top,bottom
         if x.ndim == 3:
             out = xp.pad(x.data[None], ((0, 0), (0, 0), (top, bottom), (left, right)), mode='edge')[0]
         else:
@@ -208,7 +202,7 @@ class ReplicationPad2d(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x=ctx.get_saved_tensors()[0]
         xp = cp if (cp is not None and x.__class__ is cp.ndarray) else np
-        left,right,top,bottom=convert_padding(ctx.padding)
+        left,right,top,bottom=ctx.left,ctx.right,ctx.top,ctx.bottom
         h_in = grad.shape[-2] - top - bottom
         w_in = grad.shape[-1] - left - right
         grad=grad.data
@@ -266,7 +260,6 @@ class ReLU(Function):
     def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
         x=ctx.get_saved_tensors()[0]
         return (e.Tensor(grad.data * (x.data>0),device=x.device,dtype=x.dtype) if x.requires_grad else None,)
-
 class Sigmoid(Function):
     @staticmethod
     def forward(ctx:Context,x:'Tensor')->'Tensor':
@@ -495,4 +488,10 @@ class BCEWithLogitsLoss(Function):
         if ctx.weight is not None:grad_x *= ctx.weight.data
         if ctx.reduction == 'mean':grad_x /= x.data.size
         return (e.Tensor(grad_x,device=x.device,dtype=x.dtype),None)
-    
+
+class Dropout(Function):
+    @staticmethod
+    def forward(ctx:Context,x:'Tensor',p,inplace)->'Tensor':
+        pass
+
+

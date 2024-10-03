@@ -8,11 +8,47 @@ def _ntuple(n):
         return tuple(repeat(x, n))
     return parse
 pair = _ntuple(2)
+def dilate(x,dilation)->'Tensor':return Dilate.apply(x,dilation)
+def flip(x,axis=None)->'Tensor':return Flip.apply(x,axis=axis)
+def pad(x,padding,stride=None, dilation=None, kernel_size=None,mode='zeros',value=None)->'Tensor':
+    if mode == 'zeros':
+        if value is None:
+            return ConstantPad2d.apply(x,padding,0.0,stride=stride, dilation=dilation, kernel_size=kernel_size)
+        return ConstantPad2d.apply(x,padding,value,stride=stride, dilation=dilation, kernel_size=kernel_size)
+    if mode == 'reflect' :return ReflectionPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
+    if mode == 'circular':return CircularPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
+    if mode == 'replicate':return ReplicationPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
+def conv2d_impl(x,w,bias,stride,dilation,groups):#,transpose=False):
+    return Convolution.apply(x,w,bias=bias,stride=stride,dilation=dilation,groups=groups)
 def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros'):
+    kernel_size,stride,dilation=pair(w.shape[-2:]),pair(stride),pair(dilation)
+    padding = padding if isinstance(padding,str) else pair(padding)
+    if padding != (0,0):
+        x = pad(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size,mode=padding_mode)
+        return conv2d_impl(x,w,bias,stride=stride,dilation=dilation,groups=groups)
+    return conv2d_impl(x,w,bias,stride,dilation,groups)
+def conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,dilation=1):
+    stride,padding,dilation,output_padding=pair(stride),pair(padding),pair(dilation),pair(output_padding)
+    wh,ww = w.shape[-2:]
+    ph,pw = padding
+    c_in,c_out_group,kh,kw = w.shape
+    x_dilated = dilate(x,stride)
+    x_padded_dilated = pad(x_dilated,((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
+    w = w.reshape((groups,c_in//groups,c_out_group ,kh,kw))
+    fliped_w = flip(w,axis=(-1,-2)).transpose(1,2)
+    fliped_w = fliped_w.reshape((c_out_group*groups,c_in//groups,fliped_w.shape[3],fliped_w.shape[4]))
+    y=conv2d(x_padded_dilated,fliped_w,bias=bias,stride=(1,1),dilation=dilation,groups=groups)
+    if output_padding != (0,0):
+        hop, wop = output_padding if len(output_padding) == 2 else (output_padding[0], output_padding[0])
+        Hx = (x.shape[-2] - 1) * stride[0] - 2 * padding[0] + dilation[0] * (w.shape[-2] - 1) + hop + 1
+        Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (w.shape[-1] - 1) + wop + 1
+        return y[...,ph:Hx + ph,pw:Wx+pw]
+    return y[...,ph:y.shape[2]-ph,pw:y.shape[3]-pw]
+def __conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros'):
     stride,dilation=pair(stride),pair(dilation)
     padding = padding if isinstance(padding,str) else pair(padding)
     return Convolution.apply(x,w,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode)
-def conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,dilation=1):
+def __conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,dilation=1):
     stride,padding,dilation,output_padding=pair(stride),pair(padding),pair(dilation),pair(output_padding)
     return TransposedConvolution.apply(x,w,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,output_padding=output_padding)
 def maxpool2d(x,kernel_size,stride=None,padding=0,dilation=1,ceil_mode=False,return_indices=False):
@@ -30,11 +66,11 @@ def linear(x, weight, bias=None):
     else:
         output = x@(weight.transpose(1,0).unsqueeze(shape))
     return output
-def pad(x,padding,mode='constant',value=None)->'Tensor':
-    if mode == 'constant':return ConstantPad2d.apply(x,padding,value)
-    if mode == 'reflect' :return ReflectionPad2d.apply(x,padding)
-    if mode == 'circular':return CircularPad2d.apply(x,padding)
-    if mode == 'replicate':return ReplicationPad2d.apply(x,padding)
+#def pad(x,padding,mode='constant',value=None)->'Tensor':
+    #if mode == 'constant':return ConstantPad2d.apply(x,padding,value)
+    #if mode == 'reflect' :return ReflectionPad2d.apply(x,padding)
+    #if mode == 'circular':return CircularPad2d.apply(x,padding)
+    #if mode == 'replicate':return ReplicationPad2d.apply(x,padding)
 def embedding(x, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False, sparse=False):
     return Embedding.apply(x,weight,padding_idx=padding_idx,max_norm=max_norm,norm_type=norm_type,scale_grad_by_freq=scale_grad_by_freq,sparse=sparse)
 def relu(x,inplace=False)->'Tensor':return ReLU.apply(x,inplace=inplace)

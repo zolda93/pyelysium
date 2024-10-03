@@ -94,9 +94,10 @@ class Tensor:
     def __repr__(self)->str:
         grad_fn = ' ,grad_fn<' + self._ctx.func.__name__ + 'Backward' + str(self.device)+'>' if self._ctx is not None and self.requires_grad else ''
         dtype = f' ,dtype=elysium.{self.data.dtype}'
+        requires_grad = f',requires_grad={self._requires_grad}'
         if self.data is None:return str(None)
         s = np.array2string(self.data, separator=', ', precision=4).replace('\n', '\n' + ' ' * 7)
-        return f"tensor({s}{grad_fn}{dtype})"
+        return f"tensor({s}{grad_fn}{requires_grad}{dtype})"
     def numpy(self)->np.ndarray:
         if self.requires_grad:raise RuntimeError(f"Can't call numpy() on a Tensor that requires_grad ,Use tensor.detach().numpy()")
         if self.device == 'gpu':
