@@ -18,7 +18,7 @@ def pad(x,padding,stride=None, dilation=None, kernel_size=None,mode='zeros',valu
     if mode == 'reflect' :return ReflectionPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
     if mode == 'circular':return CircularPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
     if mode == 'replicate':return ReplicationPad2d.apply(x,padding,stride=stride, dilation=dilation, kernel_size=kernel_size)
-def conv2d_impl(x,w,bias,stride,dilation,groups):#,transpose=False):
+def conv2d_impl(x,w,bias,stride,dilation,groups):
     return Convolution.apply(x,w,bias=bias,stride=stride,dilation=dilation,groups=groups)
 def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros'):
     kernel_size,stride,dilation=pair(w.shape[-2:]),pair(stride),pair(dilation)
@@ -44,13 +44,7 @@ def conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,
         Wx = (x.shape[-1] - 1) * stride[1] - 2 * padding[1] + dilation[1] * (w.shape[-1] - 1) + wop + 1
         return y[...,ph:Hx + ph,pw:Wx+pw]
     return y[...,ph:y.shape[2]-ph,pw:y.shape[3]-pw]
-def __conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='zeros'):
-    stride,dilation=pair(stride),pair(dilation)
-    padding = padding if isinstance(padding,str) else pair(padding)
-    return Convolution.apply(x,w,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,padding_mode=padding_mode)
-def __conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,dilation=1):
-    stride,padding,dilation,output_padding=pair(stride),pair(padding),pair(dilation),pair(output_padding)
-    return TransposedConvolution.apply(x,w,bias=bias,stride=stride,padding=padding,dilation=dilation,groups=groups,output_padding=output_padding)
+
 def maxpool2d(x,kernel_size,stride=None,padding=0,dilation=1,ceil_mode=False,return_indices=False):
     kernel_size ,padding,dilation= pair(kernel_size),pair(padding),pair(dilation)
     stride = kernel_size if stride is None else pair(stride)
@@ -66,11 +60,6 @@ def linear(x, weight, bias=None):
     else:
         output = x@(weight.transpose(1,0).unsqueeze(shape))
     return output
-#def pad(x,padding,mode='constant',value=None)->'Tensor':
-    #if mode == 'constant':return ConstantPad2d.apply(x,padding,value)
-    #if mode == 'reflect' :return ReflectionPad2d.apply(x,padding)
-    #if mode == 'circular':return CircularPad2d.apply(x,padding)
-    #if mode == 'replicate':return ReplicationPad2d.apply(x,padding)
 def embedding(x, weight, padding_idx=None, max_norm=None, norm_type=2.0, scale_grad_by_freq=False, sparse=False):
     return Embedding.apply(x,weight,padding_idx=padding_idx,max_norm=max_norm,norm_type=norm_type,scale_grad_by_freq=scale_grad_by_freq,sparse=sparse)
 def relu(x,inplace=False)->'Tensor':return ReLU.apply(x,inplace=inplace)
