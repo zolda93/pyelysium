@@ -491,7 +491,31 @@ class BCEWithLogitsLoss(Function):
 
 class Dropout(Function):
     @staticmethod
-    def forward(ctx:Context,x:'Tensor',p,inplace)->'Tensor':
-        pass
+    def forward(ctx:Context,x:'Tensor',p=0.5,inplace=False,training=True)->'Tensor':
+        if p < 0.0 or p > 1.0:
+            raise ValueError("dropout probability hase to be between 0 and 1,got {}".format(p))
+        ctx.save_for_backward(x)
+        xp = cp if x.device == 'gpu' else np
+        if training and p > 0.0:
+            mask = xp.random.binomial(1,1-p,size=x.shape)
+            if inplace:
+                x.data *= mask
+                if p!= 1.:
+                    x.data /= 1-p
+                value = x.data
+            else:
+                value = xp.multiply(x.data,mask)
+                if p != 1.:
+                    value /= 1-p
+            ctx.mask,ctx.p = mask,p
+            return e.Tensor(value,x.requires_grad,device=x.device,dtype=x.dtype)
+        else:
+            return x
+    @staticmethod
+    def backward(ctx:Context,grad:'Tensor')->Tuple[Union['Tensor',None],...]:
+        x=ctx.get_saved_tensors()[0]
+        xp = cp if x.device=='gpu' else np
+        grad_x = xp.divide(xp.multiply(grad.data,ctx.mask),(1 - p*(p!=1.)))
+        
 
 

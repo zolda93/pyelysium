@@ -126,7 +126,7 @@ def binary_cross_entropy(x:'Tensor', target:'Tensor', weight=None, reduction='me
 def nll_loss(x:'Tensor', target:'Tensor', weight=None,ignore_index=-100,reduction='mean')->'Tensor':return NllLoss.apply(x,target,weight=weight,ignore_index=ignore_index,reduction=reduction)
 def binary_cross_entropy_with_logits(x:'Tensor', target:'Tensor', weight=None,reduction='mean', pos_weight=None)->'Tensor':return BCEWithLogitsLoss.apply(x,target,weight=weight,reduction=reduction,pos_weight=pos_weight)
 def cross_entropy(x,target,axis=1,weight=None,ignore_index=-100,reduction='mean'):return nll_loss(log_softmax(x,dim=axis),target,weight=weight,ignore_index=ignore_index,reduction=reduction)
-
+def dropout(input, p=0.5, training=True, inplace=False)->'Tensor':return Dropout.apply(x,p=p,inplace=inplace,training=training)
 
 
         
