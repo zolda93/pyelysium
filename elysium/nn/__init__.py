@@ -8,3 +8,4 @@ from .layernorm import *
 from .groupnorm import *
 from .batchnorm import *
 from .padding import *
+from .embedding import *

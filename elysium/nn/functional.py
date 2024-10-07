@@ -29,11 +29,10 @@ def conv2d(x,w,bias=None,stride=1,padding=0,dilation=1,groups=1,padding_mode='ze
     return conv2d_impl(x,w,bias,stride,dilation,groups)
 def conv_transpose2d(x,w,bias=None,stride=1,padding=0,output_padding=0,groups=1,dilation=1):
     stride,padding,dilation,output_padding=pair(stride),pair(padding),pair(dilation),pair(output_padding)
-    wh,ww = w.shape[-2:]
     ph,pw = padding
     c_in,c_out_group,kh,kw = w.shape
     x_dilated = dilate(x,stride)
-    x_padded_dilated = pad(x_dilated,((wh - 1) * dilation[0], (ww - 1) * dilation[1]))
+    x_padded_dilated = pad(x_dilated,((kh - 1) * dilation[0], (kw - 1) * dilation[1]))
     w = w.reshape((groups,c_in//groups,c_out_group ,kh,kw))
     fliped_w = flip(w,axis=(-1,-2)).transpose(1,2)
     fliped_w = fliped_w.reshape((c_out_group*groups,c_in//groups,fliped_w.shape[3],fliped_w.shape[4]))
