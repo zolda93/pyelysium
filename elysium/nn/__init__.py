@@ -9,3 +9,4 @@ from .groupnorm import *
 from .batchnorm import *
 from .padding import *
 from .embedding import *
+from .dropout import *
